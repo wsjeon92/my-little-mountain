@@ -8,9 +8,9 @@ export interface CropDef {
 }
 
 export const CROPS: Record<CropId, CropDef> = {
-  lettuce: { name: '상추', emoji: '🥬', growMs: 3 * 60_000 },
-  carrot: { name: '당근', emoji: '🥕', growMs: 10 * 60_000 },
-  tomato: { name: '토마토', emoji: '🍅', growMs: 30 * 60_000 },
+  lettuce: { name: '상추', emoji: '🥬', growMs: 15_000 },
+  carrot: { name: '당근', emoji: '🥕', growMs: 20_000 },
+  tomato: { name: '토마토', emoji: '🍅', growMs: 30_000 },
 };
 
 export const CROP_IDS = Object.keys(CROPS) as CropId[];
