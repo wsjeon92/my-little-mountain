@@ -27,8 +27,9 @@ export const T = {
   FLOWER: 30,
   REED: 31,
   STUMP: 32,
+  RUBBLE: 33,
 } as const;
-export const TILE_COUNT = 33;
+export const TILE_COUNT = 34;
 
 export function isTree(t: number): boolean {
   return t >= T.TREE_A && t <= T.PINE_B;
@@ -87,17 +88,6 @@ export const FARM_PLOTS: { tx: number; ty: number }[] = [];
 for (const ty of [84, 86, 88]) for (const tx of [63, 65, 67, 69]) FARM_PLOTS.push({ tx, ty });
 
 const SUMMIT = { x: 48, y: 16 };
-
-function mulberry32(seed: number): () => number {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
 
 function hash(x: number, y: number): number {
   let h = Math.imul(x, 374761393) + Math.imul(y, 668265263);
@@ -168,7 +158,6 @@ let cached: MountainMap | undefined;
 
 export function getMap(): MountainMap {
   if (cached) return cached;
-  const rng = mulberry32(20261111);
   const ground: number[][] = [];
   const decor: number[][] = [];
   const inMap = (x: number, y: number) => x >= 0 && y >= 0 && x < MAP_W && y < MAP_H;
@@ -270,15 +259,22 @@ export function getMap(): MountainMap {
       if (x >= PENSION.x - 1 && x <= PENSION.x + PENSION.w && y >= PENSION.y - 1 && y < PENSION.y + PENSION.h) continue;
       const b = g >= T.LEDGE ? g - T.LEDGE : Math.floor(g / 3);
       const d = noise(x / 6 + 40, y / 6 + 40);
-      const r = rng();
+      // 위치로만 정해지는 무작위 값: 지도 일부를 고쳐도 나머지 숲 모양이 바뀌지 않는다.
+      const r = hash(x * 3 + 11, y * 7 + 5);
+      const r2 = hash(x + 101, y + 57);
+      const nearTrail =
+        (x > 0 && walk[y * MAP_W + x - 1]) ||
+        (x < MAP_W - 1 && walk[y * MAP_W + x + 1]) ||
+        (y > 0 && walk[(y - 1) * MAP_W + x]) ||
+        (y < MAP_H - 1 && walk[(y + 1) * MAP_W + x]);
       let t = -1;
       if (b === 0) {
-        if (r < 0.2 + 0.5 * d) t = rng() < 0.5 ? T.TREE_A : T.TREE_B;
+        if (r < 0.2 + 0.5 * d) t = r2 < 0.5 ? T.TREE_A : T.TREE_B;
         else if (r < 0.3 + 0.5 * d) t = T.BUSH;
         else if (r > 0.95) t = T.FLOWER;
       } else if (b === 1) {
-        if (r < 0.2 + 0.5 * d) t = rng() < 0.6 ? T.PINE_A : T.PINE_B;
-        else if (r < 0.27 + 0.5 * d) t = rng() < 0.5 ? T.TREE_B : T.BUSH;
+        if (r < 0.2 + 0.5 * d) t = r2 < 0.6 ? T.PINE_A : T.PINE_B;
+        else if (r < 0.27 + 0.5 * d) t = r2 < 0.5 ? T.TREE_B : T.BUSH;
         else if (r > 0.97) t = T.ROCK;
       } else if (b === 2) {
         if (r < 0.05 + 0.25 * d) t = T.PINE_B;
@@ -288,6 +284,8 @@ export function getMap(): MountainMap {
         if (r < 0.14) t = T.ROCK;
         else if (r < 0.2) t = T.REED;
       }
+      // 중턱 위로는 길가에 캘 수 있는 바위를 넉넉히 둔다.
+      if (b >= 1 && nearTrail && hash(x + 31, y + 77) < 0.09) t = T.ROCK;
       decor[y][x] = t;
     }
 

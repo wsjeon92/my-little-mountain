@@ -1,5 +1,6 @@
 import { CROPS, CROP_IDS, type CropId } from './crops';
-import { state } from './state';
+import { ITEMS, KIND_LABEL, type ItemId, type ItemKind } from './items';
+import { count, ownedItems } from './state';
 import { getMap, MAP_W, MAP_H, PLACES, PENSION } from './mapgen';
 import { tileColor } from './art';
 
@@ -12,9 +13,101 @@ export function setPlace(name: string, alt?: number): void {
   $('place-alt').textContent = alt === undefined ? '' : `해발 ${alt}m`;
 }
 
+let panelKind: 'none' | 'bag' | 'other' = 'none';
+
+/** 가진 물건이 바뀌었을 때 부른다. 가방이 열려 있으면 다시 그린다. */
 export function refreshInventory(): void {
-  $('inv').textContent =
-    `🪵 ${state.wood}   ` + CROP_IDS.map((c) => `${CROPS[c].emoji} ${state.inventory[c]}`).join('   ');
+  if (panelKind === 'bag' && $('panel').classList.contains('show')) showBag();
+}
+
+/** 가방 안 물건 옆에 붙는 버튼(예: 요리 '먹기'). 종류별로 등록한다. */
+const bagButtons: Partial<Record<ItemKind, { label: string; run: (id: ItemId) => void }>> = {};
+export function setBagButton(kind: ItemKind, label: string, run: (id: ItemId) => void): void {
+  bagButtons[kind] = { label, run };
+}
+let bagNote: (() => string) | undefined;
+export function setBagNote(fn: () => string): void {
+  bagNote = fn;
+}
+
+export function showBag(): void {
+  const panel = $('panel');
+  panel.innerHTML = '<div class="panel-title">가방</div>';
+  const box = document.createElement('div');
+  box.className = 'bag';
+  const owned = ownedItems();
+  if (!owned.length) box.innerHTML = '<div class="bag-empty">아직 아무것도 없어요</div>';
+  for (const kind of ['material', 'crop', 'fish', 'dish'] as ItemKind[]) {
+    const ids = owned.filter((id) => ITEMS[id].kind === kind);
+    if (!ids.length) continue;
+    const g = document.createElement('div');
+    g.className = 'bag-group';
+    g.textContent = KIND_LABEL[kind];
+    box.appendChild(g);
+    for (const id of ids) {
+      const row = document.createElement('div');
+      row.className = 'bag-item';
+      row.innerHTML = `<span class="em">${ITEMS[id].emoji}</span><span class="nm">${ITEMS[id].name}</span><span class="ct">${count(id)}</span>`;
+      const btn = bagButtons[kind];
+      if (btn) {
+        const b = document.createElement('button');
+        b.textContent = btn.label;
+        b.onclick = () => btn.run(id);
+        row.appendChild(b);
+      }
+      box.appendChild(row);
+    }
+  }
+  const note = bagNote?.();
+  if (note) {
+    const n = document.createElement('div');
+    n.className = 'bag-note';
+    n.textContent = note;
+    box.appendChild(n);
+  }
+  panel.appendChild(box);
+  addClose(panel);
+  panel.classList.add('show');
+  panelKind = 'bag';
+}
+
+function addClose(panel: HTMLElement): void {
+  const close = document.createElement('button');
+  close.className = 'panel-close';
+  close.textContent = '닫기';
+  close.onclick = hidePanel;
+  panel.appendChild(close);
+}
+
+export interface Choice {
+  emoji: string;
+  name: string;
+  small?: string;
+}
+
+/** 아래쪽에 고르기 창을 띄운다(씨앗, 카페 메뉴 등). */
+export function showChoices(title: string, choices: Choice[], onPick: (index: number) => void): void {
+  const panel = $('panel');
+  panel.innerHTML = '';
+  const t = document.createElement('div');
+  t.className = 'panel-title';
+  t.textContent = title;
+  panel.appendChild(t);
+  const row = document.createElement('div');
+  row.className = 'panel-row';
+  choices.forEach((c, i) => {
+    const b = document.createElement('button');
+    b.innerHTML = `<span class="em">${c.emoji}</span>${c.name}${c.small ? `<small>${c.small}</small>` : ''}`;
+    b.onclick = () => {
+      hidePanel();
+      onPick(i);
+    };
+    row.appendChild(b);
+  });
+  panel.appendChild(row);
+  addClose(panel);
+  panel.classList.add('show');
+  panelKind = 'other';
 }
 
 let toastTimer: number | undefined;
@@ -34,29 +127,15 @@ export function fmtRemain(ms: number): string {
 
 export function hidePanel(): void {
   $('panel').classList.remove('show');
+  panelKind = 'none';
 }
 
 export function showSeedPicker(onPick: (c: CropId) => void): void {
-  const panel = $('panel');
-  panel.innerHTML = '<div class="panel-title">무엇을 심을까요?</div>';
-  const row = document.createElement('div');
-  row.className = 'panel-row';
-  for (const id of CROP_IDS) {
-    const b = document.createElement('button');
-    b.innerHTML = `<span class="em">${CROPS[id].emoji}</span>${CROPS[id].name}<small>${fmtRemain(CROPS[id].growMs)}</small>`;
-    b.onclick = () => {
-      hidePanel();
-      onPick(id);
-    };
-    row.appendChild(b);
-  }
-  panel.appendChild(row);
-  const close = document.createElement('button');
-  close.className = 'panel-close';
-  close.textContent = '닫기';
-  close.onclick = hidePanel;
-  panel.appendChild(close);
-  panel.classList.add('show');
+  showChoices(
+    '무엇을 심을까요?',
+    CROP_IDS.map((id) => ({ emoji: CROPS[id].emoji, name: CROPS[id].name, small: fmtRemain(CROPS[id].growMs) })),
+    (i) => onPick(CROP_IDS[i]),
+  );
 }
 
 // ── 미니맵 ───────────────────────────────────────────────
@@ -122,5 +201,8 @@ export function initHud(onMapToggle: () => void): void {
     onMapToggle();
   };
   $('minimap-wrap').onclick = () => $('minimap-wrap').classList.remove('show');
-  refreshInventory();
+  $('bagbtn').onclick = () => {
+    if (panelKind === 'bag') hidePanel();
+    else showBag();
+  };
 }

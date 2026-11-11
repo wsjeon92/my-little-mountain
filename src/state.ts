@@ -1,4 +1,5 @@
-import { CROPS, CROP_IDS, type CropId } from './crops';
+import { CROPS, type CropId } from './crops';
+import { FISH_ODDS, ITEM_IDS, type ItemId } from './items';
 
 /**
  * 게임 상태와, 상태를 바꾸는 유일한 통로(actions).
@@ -20,57 +21,77 @@ export interface MoveIntent {
 }
 
 export interface GameState {
-  version: 1;
+  version: 2;
   playerId: string;
   player: { scene: SceneId; tx: number; ty: number; lastMove?: MoveIntent };
   farm: { ownerId: string; plots: Plot[] };
-  inventory: Record<CropId, number>;
+  /** 가방: 물건 → 개수 */
+  items: Partial<Record<ItemId, number>>;
   visited: string[];
-  /** 가진 장작 수 */
-  wood: number;
-  /** 벤 나무: "tx,ty" → 벤 시각. 다시 자라면 지운다. (멀티에서는 모두가 함께 보는 월드 상태) */
-  trees: Record<string, number>;
+  /** 벤 나무·캔 바위: "tx,ty" → 채집한 시각. 다시 생기면 지운다. (멀티에서는 모두가 함께 보는 월드 상태) */
+  gathered: Record<string, number>;
   /** 벽난로 불이 꺼지는 시각 */
   fireUntil: number;
+  /** 정상 돌탑에 올린 돌 수 (멀티에서는 모두가 함께 쌓는 월드 상태) */
+  cairn: number;
 }
 
 const KEY = 'my-little-mountain:v1';
 export const PLOT_COUNT = 12;
 /** 벤 나무가 다시 자라는 데 걸리는 실제 시간 */
-export const REGROW_MS = 10 * 60_000;
+export const TREE_MS = 10 * 60_000;
+/** 캔 바위가 다시 생기는 데 걸리는 실제 시간 */
+export const ROCK_MS = 15 * 60_000;
 /** 장작 하나가 벽난로에서 타는 시간 */
 export const FIRE_MS = 10 * 60_000;
 
 function fresh(): GameState {
   const id = 'p-' + Math.random().toString(36).slice(2, 10);
   return {
-    version: 1,
+    version: 2,
     playerId: id,
     player: { scene: 'mountain', tx: -1, ty: -1 },
     farm: {
       ownerId: id,
       plots: Array.from({ length: PLOT_COUNT }, () => ({ crop: null, plantedAt: 0 })),
     },
-    inventory: { lettuce: 0, carrot: 0, tomato: 0 },
+    items: {},
     visited: [],
-    wood: 0,
-    trees: {},
+    gathered: {},
     fireUntil: 0,
+    cairn: 0,
   };
+}
+
+/** 이전 버전 저장 데이터를 지금 구조로 옮긴다. */
+function migrate(raw: Record<string, unknown>): GameState | null {
+  const farm = raw.farm as GameState['farm'] | undefined;
+  if (!farm?.plots || farm.plots.length !== PLOT_COUNT) return null;
+  if (raw.version === 1) {
+    // v0.1~0.2: 작물은 inventory, 장작은 wood, 벤 나무는 trees 에 따로 있었다.
+    raw.items = { ...((raw.inventory as object) ?? {}), wood: (raw.wood as number) ?? 0 };
+    raw.gathered = raw.trees ?? {};
+    delete raw.inventory;
+    delete raw.wood;
+    delete raw.trees;
+    raw.version = 2;
+  }
+  if (raw.version !== 2) return null;
+  const s = raw as unknown as GameState;
+  s.items ??= {};
+  s.gathered ??= {};
+  s.fireUntil ??= 0;
+  s.cairn ??= 0;
+  s.visited ??= [];
+  return s;
 }
 
 function load(): GameState {
   try {
     const raw = localStorage.getItem(KEY);
     if (raw) {
-      const s = JSON.parse(raw) as GameState;
-      if (s && s.version === 1 && s.farm?.plots?.length === PLOT_COUNT) {
-        for (const c of CROP_IDS) s.inventory[c] ??= 0;
-        s.wood ??= 0;
-        s.trees ??= {};
-        s.fireUntil ??= 0;
-        return s;
-      }
+      const s = migrate(JSON.parse(raw));
+      if (s) return s;
     }
   } catch {
     /* 저장소를 못 쓰는 환경이면 새 상태로 시작 */
@@ -102,6 +123,18 @@ window.addEventListener('pagehide', () => save(true));
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) save(true);
 });
+
+export function count(id: ItemId): number {
+  return state.items[id] ?? 0;
+}
+
+function give(id: ItemId, n: number): void {
+  state.items[id] = Math.max(0, count(id) + n);
+}
+
+export function ownedItems(): ItemId[] {
+  return ITEM_IDS.filter((id) => count(id) > 0);
+}
 
 export type PlotView =
   | { kind: 'empty' }
@@ -143,31 +176,55 @@ export const actions = {
     save(true);
     return true;
   },
-  chop(tx: number, ty: number): boolean {
+  harvest(i: number): CropId | null {
+    const v = viewPlot(i);
+    if (v.kind !== 'ready') return null;
+    give(v.crop, 1);
+    state.farm.plots[i] = { crop: null, plantedAt: 0 };
+    save(true);
+    return v.crop;
+  },
+  /** 나무를 베거나 바위를 캐서 물건 하나를 얻는다. */
+  gather(tx: number, ty: number, item: ItemId): boolean {
     const k = `${tx},${ty}`;
-    if (state.trees[k]) return false;
-    state.trees[k] = Date.now();
-    state.wood += 1;
+    if (state.gathered[k]) return false;
+    state.gathered[k] = Date.now();
+    give(item, 1);
     save(true);
     return true;
   },
   regrow(key: string): void {
-    delete state.trees[key];
+    delete state.gathered[key];
     save();
   },
   addFirewood(): boolean {
-    if (state.wood <= 0) return false;
-    state.wood -= 1;
+    if (count('wood') <= 0) return false;
+    give('wood', -1);
     state.fireUntil = Math.max(Date.now(), state.fireUntil) + FIRE_MS;
     save(true);
     return true;
   },
-  harvest(i: number): CropId | null {
-    const v = viewPlot(i);
-    if (v.kind !== 'ready') return null;
-    state.inventory[v.crop] += 1;
-    state.farm.plots[i] = { crop: null, plantedAt: 0 };
+  /** 정상 돌탑에 돌 하나를 올린다. */
+  placeStone(): boolean {
+    if (count('stone') <= 0) return false;
+    give('stone', -1);
+    state.cairn += 1;
     save(true);
-    return v.crop;
+    return true;
+  },
+  /** 물고기 한 마리를 낚는다. 어떤 물고기인지는 확률로 정해진다. */
+  catchFish(): ItemId {
+    let r = Math.random();
+    let got = FISH_ODDS[0][0];
+    for (const [id, p] of FISH_ODDS) {
+      if (r < p) {
+        got = id;
+        break;
+      }
+      r -= p;
+    }
+    give(got, 1);
+    save(true);
+    return got;
   },
 };

@@ -75,6 +75,7 @@ export abstract class BaseScene extends Phaser.Scene {
 
   private handleTap(wx: number, wy: number): void {
     hidePanel();
+    if (this.tapIntercept()) return;
     for (const it of this.interactables) {
       if (it.hit.contains(wx, wy)) {
         this.goTo(it.approach.tx, it.approach.ty, it.onArrive);
@@ -130,6 +131,10 @@ export abstract class BaseScene extends Phaser.Scene {
 
   /** 고정 대상이 아닌 것(나무 등)을 눌렀는지 장면별로 처리. 처리했으면 true. */
   protected tapWorld(_wx: number, _wy: number): boolean {
+    return false;
+  }
+  /** 진행 중인 동작(낚시 등)이 이번 탭을 가져가면 true. */
+  protected tapIntercept(): boolean {
     return false;
   }
   /** 한 칸 옮길 때마다 불린다. */

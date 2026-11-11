@@ -209,6 +209,12 @@ function drawTile(c: Ctx, i: number): void {
       ellipse(c, 16, 17, 6, 3, '#d9b27c');
       ellipse(c, 16, 17, 3.2, 1.5, '#c39a62');
       return;
+    case T.RUBBLE:
+      ellipse(c, 16, 25, 9, 3, 'rgba(0,0,0,0.12)');
+      ellipse(c, 11, 23, 3.5, 2.5, '#9a958a');
+      ellipse(c, 19, 24, 4, 2.6, '#aaa59a');
+      ellipse(c, 15, 20, 2.5, 1.8, '#b6b1a6');
+      return;
     case T.REED: {
       const r = rnd(777);
       c.lineWidth = 1.5;
@@ -566,6 +572,31 @@ export function buildTextures(scene: Phaser.Scene): void {
   poly(a, [3, 2, 14, 2, 16, 10, 5, 10], '#b9bfc6');
   poly(a, [3, 2, 14, 2, 14.5, 4, 3.5, 4], '#e3e7ea');
   tx.addCanvas('axe', ac);
+  const [pc, p] = mk(22, 24);
+  p.fillStyle = '#8a6a48';
+  p.fillRect(10, 4, 3, 20);
+  p.strokeStyle = '#8f969e';
+  p.lineWidth = 3.5;
+  p.lineCap = 'round';
+  p.beginPath();
+  p.moveTo(2, 9);
+  p.quadraticCurveTo(11, -1, 20, 9);
+  p.stroke();
+  tx.addCanvas('pick', pc);
+  // 돌탑: 쌓은 돌 수에 따라 5단계
+  for (let lv = 0; lv < 5; lv++) {
+    const [cc, k] = mk(64, 84);
+    ellipse(k, 32, 78, 26, 5, 'rgba(0,0,0,0.18)');
+    ellipse(k, 32, 75, 24, 6, '#8d8577');
+    const n = [0, 2, 4, 7, 10][lv];
+    for (let i = 0; i < n; i++) {
+      const w = 20 - i * 1.6;
+      const y = 69 - i * 6.6;
+      ellipse(k, 32 + (i % 2 ? 1.5 : -1.5), y, w, 4.6, i % 2 ? '#b6b1a6' : '#a39e92');
+      ellipse(k, 28 + (i % 2 ? 1.5 : -1.5), y - 1.2, w * 0.5, 1.6, 'rgba(255,255,255,0.28)');
+    }
+    tx.addCanvas('cairn_' + lv, cc);
+  }
   const [sh, s] = mk(28, 12);
   ellipse(s, 14, 6, 13, 5, 'rgba(0,0,0,0.22)');
   tx.addCanvas('shadow', sh);
