@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { RoomScene } from './RoomScene';
-import { CAFE } from './mapgen';
+import { CAFE, TILE } from './mapgen';
 import { CAFE_H, CAFE_W } from './art';
 import { eul } from './items';
 import * as hud from './hud';
@@ -50,16 +50,36 @@ export class CafeScene extends RoomScene {
           (i) => this.order(i),
         ),
     });
-    // 창가 의자 4개, 탁자 의자 4개
-    for (const x of [6, 8, 10, 12]) this.seat(x, 2, '창가에 앉아', '산을 바라봅니다');
-    for (const x of [4, 6, 9, 11]) this.seat(x, 5, '자리에 앉아', '잠깐 쉽니다');
+    // 창가 의자 4개: 잔은 바로 앞 창가 긴 탁자 위에 놓는다.
+    for (const x of [6, 8, 10, 12]) this.seat(x, 2, '창가에 앉아', '산을 바라봅니다', (x + 0.5) * TILE + 14, 71, false);
+    // 탁자 의자 4개: 잔은 옆 둥근 탁자 위, 앉은 쪽 가장자리에 놓는다.
+    for (const [x, table] of [[4, 5], [6, 5], [9, 10], [11, 10]]) {
+      const side = x < table ? -7 : 7;
+      this.seat(x, 5, '자리에 앉아', '잠깐 쉽니다', (table + 0.5) * TILE + side, 5.5 * TILE + 3, x > table);
+    }
   }
 
-  private seat(tx: number, ty: number, where: string, idle: string): void {
+  /** (cupX, cupY) 는 이 자리에 앉았을 때 잔을 내려놓는 탁자 위 위치. */
+  private seat(tx: number, ty: number, where: string, idle: string, cupX: number, cupY: number, faceLeft: boolean): void {
     this.interactables.push({
       hit: this.rect(tx, ty, 1, 1),
       approach: { tx, ty },
-      onArrive: () => this.sitDown(this.drink ? `${where} ${eul(this.drink.name)} 마십니다` : `${where} ${idle}`),
+      onArrive: () => {
+        this.sprite.setFlipX(faceLeft);
+        const d = this.drink;
+        if (!d) {
+          this.sitDown(`${where} ${idle}`);
+          return;
+        }
+        // 들고 있던 잔을 탁자에 내려놓는다. 일어나면 다시 들고 간다.
+        this.cup.setVisible(false);
+        const onTable = this.add.text(cupX, cupY, d.emoji, { fontSize: '14px' }).setOrigin(0.5, 1).setDepth(cupY + 40);
+        this.setPose(() => {
+          onTable.destroy();
+          this.cup.setVisible(true);
+        });
+        this.sitDown(`${where} ${eul(d.name)} 탁자에 내려놓고 마십니다`);
+      },
     });
   }
 
