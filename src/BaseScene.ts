@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { TILE } from './mapgen';
 import { findPath } from './pathfind';
 import { actions, FULL_SPEED, isFull } from './state';
-import { hidePanel } from './hud';
+import { hidePanel, showChoices } from './hud';
 
 export interface Interactable {
   /** 누르면 반응하는 영역(월드 좌표, px) */
@@ -32,6 +32,9 @@ export abstract class BaseScene extends Phaser.Scene {
   private pinchDist = 0;
   private pinched = false;
   private walkT = 0;
+  /** 지금 취하고 있는 동작(앉기·춤 등)을 푸는 함수 */
+  private poseStop?: () => void;
+  private dancing = false;
 
   protected initGrid(w: number, h: number, walk: Uint8Array): void {
     this.gw = w;
@@ -42,6 +45,8 @@ export abstract class BaseScene extends Phaser.Scene {
     this.arriveCb = undefined;
     this.busy = false;
     this.pinched = false;
+    this.poseStop = undefined;
+    this.dancing = false;
   }
 
   protected createPlayer(tx: number, ty: number): void {
@@ -76,6 +81,11 @@ export abstract class BaseScene extends Phaser.Scene {
   private handleTap(wx: number, wy: number): void {
     hidePanel();
     if (this.tapIntercept()) return;
+    // 캐릭터를 누르면 행동 창
+    if (Math.abs(wx - this.player.x) <= 16 && wy >= this.player.y - 40 && wy <= this.player.y + 8) {
+      this.showActions();
+      return;
+    }
     for (const it of this.interactables) {
       if (it.hit.contains(wx, wy)) {
         this.goTo(it.approach.tx, it.approach.ty, it.onArrive);
@@ -113,6 +123,7 @@ export abstract class BaseScene extends Phaser.Scene {
     }
     const path = findPath(this.walk, this.gw, this.gh, sx, sy, tx, ty);
     if (!path) return;
+    this.clearPose();
     this.onLeave();
     this.sprite.setTexture('player');
     actions.moveIntent([sx, sy], [tx, ty]);
@@ -133,6 +144,71 @@ export abstract class BaseScene extends Phaser.Scene {
   protected tapWorld(_wx: number, _wy: number): boolean {
     return false;
   }
+  /** 동작을 시작할 때 부른다. stop 은 그 동작을 풀 때 할 일. 걷기 시작하면 자동으로 풀린다. */
+  protected setPose(stop: () => void): void {
+    this.clearPose();
+    this.poseStop = stop;
+  }
+
+  protected clearPose(): void {
+    const stop = this.poseStop;
+    this.poseStop = undefined;
+    stop?.();
+  }
+
+  /** 캐릭터를 눌렀을 때 뜨는 행동 창. 동작을 늘리려면 여기에 항목을 더한다. */
+  private showActions(): void {
+    if (this.path.length) return;
+    if (this.dancing) {
+      showChoices('무엇을 할까요?', [{ emoji: '🧍', name: '그만 추기' }], () => this.clearPose());
+    } else {
+      showChoices('무엇을 할까요?', [{ emoji: '💃', name: '춤추기' }], () => this.dance());
+    }
+  }
+
+  private dance(): void {
+    if (this.path.length || this.busy) return;
+    this.clearPose();
+    this.onLeave();
+    this.sprite.setTexture('player');
+    const sway = this.tweens.add({
+      targets: this.sprite,
+      angle: { from: -12, to: 12 },
+      duration: 260,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
+    });
+    const hop = this.tweens.add({ targets: this.sprite, y: -7, duration: 260, yoyo: true, repeat: -1, ease: 'Quad.easeOut' });
+    const turn = this.time.addEvent({ delay: 1040, loop: true, callback: () => this.sprite.toggleFlipX() });
+    const notes = this.time.addEvent({
+      delay: 620,
+      loop: true,
+      callback: () => {
+        const n = this.add
+          .text(this.player.x + Phaser.Math.Between(-12, 12), this.player.y - 42, Math.random() < 0.5 ? '♪' : '♫', {
+            fontSize: '16px',
+            color: '#fff6dc',
+            stroke: '#3b2f22',
+            strokeThickness: 4,
+          })
+          .setOrigin(0.5)
+          .setDepth(1e6);
+        this.tweens.add({ targets: n, y: n.y - 24, alpha: 0, duration: 1000, onComplete: () => n.destroy() });
+      },
+    });
+    this.dancing = true;
+    this.setPose(() => {
+      sway.stop();
+      hop.stop();
+      turn.remove();
+      notes.remove();
+      this.sprite.setAngle(0);
+      this.sprite.y = 0;
+      this.dancing = false;
+    });
+  }
+
   /** 진행 중인 동작(낚시 등)이 이번 탭을 가져가면 true. */
   protected tapIntercept(): boolean {
     return false;

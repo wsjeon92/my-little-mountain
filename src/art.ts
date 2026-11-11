@@ -280,6 +280,28 @@ function drawPlayer(sit: boolean): HTMLCanvasElement {
   return cv;
 }
 
+/** 뒷모습: 전망대에서 손을 이마에 대고 먼 곳을 바라본다. */
+function drawPlayerBack(): HTMLCanvasElement {
+  const [cv, c] = mk(32, 40);
+  c.fillStyle = '#4a4034';
+  c.fillRect(11, 31, 4, 7);
+  c.fillRect(17, 31, 4, 7);
+  rrect(c, 9, 16, 14, 16, 5, '#e07a3f'); // 윗옷
+  rrect(c, 22, 9, 4, 11, 2, '#e07a3f'); // 들어 올린 팔
+  circle(c, 23.5, 8.5, 2.4, '#f4d6b4');
+  rrect(c, 10, 17, 12, 13, 3, '#5d7a52'); // 배낭
+  c.fillStyle = 'rgba(0,0,0,0.15)';
+  c.fillRect(11, 22, 10, 1.5);
+  rrect(c, 13, 24, 6, 4, 1, '#4c6643');
+  circle(c, 16, 11, 7, '#f4d6b4');
+  circle(c, 16, 10.5, 6.6, '#5b3d22'); // 뒤통수
+  ellipse(c, 16, 7, 11, 3.2, '#e8d28a'); // 밀짚모자
+  rrect(c, 10, 1, 12, 7, 4, '#f0dc98');
+  c.fillStyle = '#b5544a';
+  c.fillRect(10, 5, 12, 2);
+  return cv;
+}
+
 function drawPension(): HTMLCanvasElement {
   const [cv, c] = mk(256, 208);
   ellipse(c, 128, 200, 122, 8, 'rgba(0,0,0,0.15)');
@@ -753,6 +775,13 @@ export function buildTextures(scene: Phaser.Scene): void {
   tx.addCanvas('tiles', buildTileset());
   tx.addCanvas('player', drawPlayer(false));
   tx.addCanvas('player_sit', drawPlayer(true));
+  tx.addCanvas('player_back', drawPlayerBack());
+  const [dc, d] = mk(18, 12); // 약수 바가지
+  d.fillStyle = '#8a6a48';
+  d.fillRect(9, 4, 9, 2.5);
+  ellipse(d, 6, 6, 6, 4.5, '#c39a62');
+  ellipse(d, 6, 5, 4.3, 2.6, '#8fd0ea');
+  tx.addCanvas('dipper', dc);
   tx.addCanvas('pension', drawPension());
   tx.addCanvas('sign', drawSign());
   for (const k of ['gate', 'spring', 'bench', 'deck', 'stone']) tx.addCanvas('f_' + k, drawFeature(k));

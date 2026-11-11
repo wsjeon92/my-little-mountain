@@ -104,8 +104,18 @@ export class MountainScene extends BaseScene {
         const gy = (p.ty - 2) * TILE;
         this.add.image((p.tx + 1) * TILE, gy, 'f_gate').setOrigin(0.5, 1).setDepth(gy);
       } else if (p.feature) {
+        const fx = (p.tx + 2.5) * TILE;
         const fy = (p.ty - 1) * TILE;
-        this.add.image((p.tx + 2.5) * TILE, fy, 'f_' + p.feature).setOrigin(0.5, 1).setDepth(fy);
+        const img = this.add.image(fx, fy, 'f_' + p.feature).setOrigin(0.5, 1).setDepth(fy);
+        const hit = new Phaser.Geom.Rectangle(fx - img.width / 2, fy - img.height, img.width, img.height);
+        // 쉼터 구조물을 누르면 그 자리에서 할 수 있는 동작을 한다.
+        if (p.feature === 'bench') {
+          this.interactables.push({ hit, approach: { tx: p.tx + 2, ty: p.ty - 2 }, onArrive: () => this.sitOnBench(fx, fy) });
+        } else if (p.feature === 'deck') {
+          this.interactables.push({ hit, approach: { tx: p.tx + 2, ty: p.ty - 2 }, onArrive: () => this.lookOut(fx, fy) });
+        } else if (p.feature === 'spring') {
+          this.interactables.push({ hit, approach: { tx: p.tx + 1, ty: p.ty - 2 }, onArrive: () => this.drinkSpring() });
+        }
       }
     }
 
@@ -431,6 +441,54 @@ export class MountainScene extends BaseScene {
   protected onLeave(): void {
     this.stopWork();
     this.stopFishing();
+  }
+
+  // ── 쉼터에서의 동작 ─────────────────────────────────────
+
+  private sitOnBench(fx: number, fy: number): void {
+    this.player.setPosition(fx, fy - 6).setDepth(fy + 1);
+    this.sprite.setTexture('player_sit').setFlipX(false);
+    this.setPose(() => undefined);
+    hud.toast('통나무에 앉아 쉽니다');
+  }
+
+  private lookOut(fx: number, fy: number): void {
+    this.player.setPosition(fx, fy - 14).setDepth(fy + 1);
+    this.sprite.setTexture('player_back').setFlipX(false);
+    // 구경하는 동안 화면이 천천히 멀어져 산이 넓게 보인다.
+    const cam = this.cameras.main;
+    const z0 = cam.zoom;
+    const out = this.tweens.add({ targets: cam, zoom: Math.max(this.minZoom, z0 * 0.55), duration: 1500, ease: 'Sine.easeInOut' });
+    this.setPose(() => {
+      out.stop();
+      this.tweens.add({ targets: cam, zoom: z0, duration: 500, ease: 'Sine.easeOut' });
+    });
+    hud.toast('난간에 서서 먼 산을 바라봅니다');
+  }
+
+  private drinkSpring(): void {
+    this.sprite.setFlipX(false);
+    const dipper = this.add.image(12, -6, 'dipper').setOrigin(1, 0.5);
+    this.player.add(dipper);
+    // 물을 떠서(아래) 입으로 가져가 마신다(위로 기울임), 두 모금
+    const sip = this.tweens.add({
+      targets: dipper,
+      y: -22,
+      angle: -35,
+      duration: 480,
+      yoyo: true,
+      repeat: 1,
+      hold: 260,
+      ease: 'Sine.easeInOut',
+      onComplete: () => {
+        this.clearPose();
+        hud.toast('💧 시원한 약수 한 모금');
+      },
+    });
+    this.setPose(() => {
+      sip.stop();
+      dipper.destroy();
+    });
   }
 
   // ── 닭·토끼 우리 ────────────────────────────────────────
