@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#6aa35c" />
+    <title>마이리틀마운틴</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%276%27 fill=%27%2386b96b%27/%3E%3Cpath d=%27M3 26 13 9l5 8 3-4 8 13z%27 fill=%27%23fffaec%27/%3E%3C/svg%3E" />
+    <style>
+      html, body { margin: 0; height: 100%; overflow: hidden; background: #6aa35c; touch-action: none;
+        font-family: system-ui, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; color: #3b2f22;
+        -webkit-user-select: none; user-select: none; }
+      #game { position: fixed; inset: 0; }
+      #hud { position: fixed; inset: 0; pointer-events: none; }
+      #hud > * { pointer-events: auto; }
+      .chip { position: absolute; background: rgba(255, 250, 236, 0.92); border-radius: 14px;
+        padding: 8px 14px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18); font-size: 14px; }
+      #place { top: calc(12px + env(safe-area-inset-top)); left: 12px; pointer-events: none; }
+      #place-name { font-weight: 700; font-size: 15px; }
+      #place-alt { font-size: 12px; opacity: 0.7; margin-top: 2px; }
+      #place-alt:empty { display: none; }
+      #inv { top: calc(12px + env(safe-area-inset-top)); right: 12px; pointer-events: none; white-space: pre; }
+      #mapbtn { bottom: calc(16px + env(safe-area-inset-bottom)); right: 12px; border: 0; font: inherit;
+        font-weight: 700; color: inherit; cursor: pointer; }
+      #toast { left: 50%; bottom: calc(72px + env(safe-area-inset-bottom)); transform: translate(-50%, 8px);
+        opacity: 0; transition: opacity 0.25s, transform 0.25s; pointer-events: none; text-align: center;
+        max-width: calc(100vw - 48px); background: rgba(59, 47, 34, 0.88); color: #fff6dc; }
+      #toast.show { opacity: 1; transform: translate(-50%, 0); }
+      #panel { left: 50%; bottom: calc(16px + env(safe-area-inset-bottom)); transform: translateX(-50%);
+        display: none; text-align: center; padding: 14px 16px; }
+      #panel.show { display: block; }
+      .panel-title { font-weight: 700; margin-bottom: 10px; }
+      .panel-row { display: flex; gap: 8px; }
+      .panel-row button { border: 0; background: #efe2c4; border-radius: 12px; padding: 10px 14px; font: inherit;
+        color: inherit; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 76px; }
+      .panel-row button:hover { background: #e6d5ac; }
+      .panel-row .em { font-size: 24px; }
+      .panel-row small { opacity: 0.65; font-size: 11px; }
+      .panel-close { margin-top: 10px; border: 0; background: none; font: inherit; font-size: 13px;
+        color: inherit; opacity: 0.6; cursor: pointer; }
+      #minimap-wrap { display: none; position: absolute; inset: 0; background: rgba(40, 32, 24, 0.45);
+        align-items: center; justify-content: center; }
+      #minimap-wrap.show { display: flex; }
+      #minimap { max-height: 78vh; max-width: 86vw; height: 78vh; width: auto; border-radius: 12px;
+        border: 4px solid #fffaec; box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35); image-rendering: pixelated; }
+    </style>
+  </head>
+  <body>
+    <div id="game"></div>
+    <div id="hud">
+      <div id="place" class="chip"><div id="place-name">산</div><div id="place-alt"></div></div>
+      <div id="inv" class="chip"></div>
+      <button id="mapbtn" class="chip">지도</button>
+      <div id="toast" class="chip"></div>
+      <div id="panel" class="chip"></div>
+      <div id="minimap-wrap"><canvas id="minimap"></canvas></div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
