@@ -1,6 +1,7 @@
 import { CROPS, CROP_IDS, type CropId } from './crops';
-import { ITEMS, KIND_LABEL, type ItemId, type ItemKind } from './items';
-import { count, ownedItems } from './state';
+import { ITEMS, KIND_LABEL, needsText, RECIPES, type ItemId, type ItemKind } from './items';
+import { canCook, count, isFull, ownedItems, state } from './state';
+import { CAFE } from './mapgen';
 import { getMap, MAP_W, MAP_H, PLACES, PENSION } from './mapgen';
 import { tileColor } from './art';
 
@@ -79,6 +80,47 @@ function addClose(panel: HTMLElement): void {
   panel.appendChild(close);
 }
 
+/** 주방 화덕의 요리 목록. 재료가 모자라면 만들기 버튼이 흐려진다. */
+export function showRecipes(onCook: (index: number) => void): void {
+  const panel = $('panel');
+  panel.innerHTML = '<div class="panel-title">무엇을 만들까요?</div>';
+  const box = document.createElement('div');
+  box.className = 'bag';
+  RECIPES.forEach((r, i) => {
+    const row = document.createElement('div');
+    row.className = 'bag-item';
+    const known = state.cookbook.includes(r.dish) ? ' ✓' : '';
+    row.innerHTML = `<span class="em">${ITEMS[r.dish].emoji}</span><span class="nm">${ITEMS[r.dish].name}${known}<small class="needs">${needsText(r)}</small></span>`;
+    const b = document.createElement('button');
+    b.textContent = '만들기';
+    b.disabled = !canCook(r);
+    b.onclick = () => {
+      hidePanel();
+      onCook(i);
+    };
+    row.appendChild(b);
+    box.appendChild(row);
+  });
+  const n = document.createElement('div');
+  n.className = 'bag-note';
+  n.textContent = `요리 도감 ${state.cookbook.length}/${RECIPES.length} · ✓ 는 만들어 본 요리`;
+  box.appendChild(n);
+  panel.appendChild(box);
+  addClose(panel);
+  panel.classList.add('show');
+  panelKind = 'other';
+}
+
+export function refreshBuff(): void {
+  const el = $('buff');
+  if (isFull()) {
+    el.textContent = `🍽️ 든든함 · ${fmtRemain(state.speedUntil - Date.now())}`;
+    el.classList.add('show');
+  } else {
+    el.classList.remove('show');
+  }
+}
+
 export interface Choice {
   emoji: string;
   name: string;
@@ -155,6 +197,8 @@ function buildBase(): HTMLCanvasElement {
     }
   g.fillStyle = '#a8503c';
   g.fillRect(PENSION.x * MM, PENSION.y * MM, PENSION.w * MM, PENSION.h * MM);
+  g.fillStyle = '#3f6b52';
+  g.fillRect(CAFE.x * MM, CAFE.y * MM, CAFE.w * MM, CAFE.h * MM);
   for (const p of PLACES) {
     if (p.hidden) continue;
     g.fillStyle = '#ffffff';
@@ -201,6 +245,8 @@ export function initHud(onMapToggle: () => void): void {
     onMapToggle();
   };
   $('minimap-wrap').onclick = () => $('minimap-wrap').classList.remove('show');
+  refreshBuff();
+  window.setInterval(refreshBuff, 1000);
   $('bagbtn').onclick = () => {
     if (panelKind === 'bag') hidePanel();
     else showBag();

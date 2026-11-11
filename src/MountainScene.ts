@@ -1,10 +1,25 @@
 import Phaser from 'phaser';
 import { BaseScene } from './BaseScene';
-import { altitude, FARM_PLOTS, getMap, isTree, MAP_H, MAP_W, PENSION, PLACES, T, TILE, YARD } from './mapgen';
+import {
+  altitude,
+  CAFE,
+  CAFE_YARD,
+  FARM_PLOTS,
+  getMap,
+  isTree,
+  MAP_H,
+  MAP_W,
+  PENSION,
+  PLACES,
+  T,
+  TILE,
+  YARD,
+} from './mapgen';
 import { actions, count, ROCK_MS, state, TREE_MS, viewPlot } from './state';
 import { CROPS } from './crops';
 import { eul, ITEMS, type ItemId } from './items';
 import * as hud from './hud';
+import { CAIRN_CAP, CAIRN_H, CAIRN_W, cairnName, drawCairn } from './cairn';
 
 const FONT = 'system-ui, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif';
 
@@ -27,10 +42,6 @@ function ruleOf(tile: number): GatherRule | null {
   return null;
 }
 
-function cairnLevel(n: number): number {
-  return n >= 20 ? 4 : n >= 10 ? 3 : n >= 4 ? 2 : n >= 1 ? 1 : 0;
-}
-
 interface Fishing {
   phase: 'wait' | 'bite';
   bobber: Phaser.GameObjects.Arc;
@@ -47,6 +58,8 @@ export class MountainScene extends BaseScene {
   private tool!: Phaser.GameObjects.Image;
   private working?: { timer: Phaser.Time.TimerEvent; tween: Phaser.Tweens.Tween };
   private cairn!: Phaser.GameObjects.Image;
+  private cairnTex!: Phaser.Textures.CanvasTexture;
+  private cairnBaseY = 0;
   private cairnLabel!: Phaser.GameObjects.Text;
   private fishing?: Fishing;
 
@@ -79,7 +92,7 @@ export class MountainScene extends BaseScene {
       if (p.hidden) continue;
       const sx = (p.tx - 2 + 0.5) * TILE;
       const sy = (p.ty - 1) * TILE;
-      if (p.id !== 'pension') {
+      if (p.id !== 'pension' && p.id !== 'cafe') {
         this.add.image(sx, sy, 'sign').setOrigin(0.5, 1).setDepth(sy);
         this.label(sx, sy - 34, p.name);
       }
@@ -95,13 +108,18 @@ export class MountainScene extends BaseScene {
     // 정상 돌탑
     const summit = PLACES.find((p) => p.id === 'summit')!;
     const cx = (summit.tx + 0.5) * TILE;
-    const cy = (summit.ty - 2) * TILE;
-    this.cairn = this.add.image(cx, cy, 'cairn_0').setOrigin(0.5, 1).setDepth(cy);
-    this.cairnLabel = this.label(cx, cy - 84, '');
+    const cy = (summit.ty - 3) * TILE;
+    // 돌 수에 따라 매번 새로 그리는 그림(돌 하나하나가 보인다)
+    this.cairnTex = this.textures.exists('cairns')
+      ? (this.textures.get('cairns') as Phaser.Textures.CanvasTexture)
+      : this.textures.createCanvas('cairns', CAIRN_W, CAIRN_H)!;
+    this.cairnBaseY = cy;
+    this.cairn = this.add.image(cx, cy + 14, 'cairns').setOrigin(0.5, 1).setDepth(cy);
+    this.cairnLabel = this.label(cx, cy - 20, '');
     this.refreshCairn();
     this.interactables.push({
-      hit: new Phaser.Geom.Rectangle(cx - 34, cy - 84, 68, 88),
-      approach: { tx: summit.tx, ty: summit.ty - 1 },
+      hit: new Phaser.Geom.Rectangle(cx - 60, cy - 70, 120, 76),
+      approach: { tx: summit.tx, ty: summit.ty - 2 },
       onArrive: () => this.useCairn(),
     });
 
@@ -115,6 +133,19 @@ export class MountainScene extends BaseScene {
       onArrive: () => {
         actions.setPosition('pension', 6, 7);
         this.scene.start('pension');
+      },
+    });
+
+    // 카페
+    const kx = (CAFE.x + CAFE.w / 2) * TILE;
+    const ky = (CAFE.y + CAFE.h) * TILE;
+    this.add.image(kx, ky + 6, 'cafe').setOrigin(0.5, 1).setDepth(ky - 1);
+    this.interactables.push({
+      hit: new Phaser.Geom.Rectangle(CAFE.x * TILE, (CAFE.y - 1) * TILE, CAFE.w * TILE, (CAFE.h + 1) * TILE),
+      approach: CAFE.door,
+      onArrive: () => {
+        actions.setPosition('cafe', 7, 8);
+        this.scene.start('cafe');
       },
     });
 
@@ -386,16 +417,26 @@ export class MountainScene extends BaseScene {
   // ── 돌탑 ───────────────────────────────────────────────
 
   private refreshCairn(): void {
-    this.cairn.setTexture('cairn_' + cairnLevel(state.cairn));
-    this.cairnLabel.setText(state.cairn > 0 ? `돌탑 · 돌 ${state.cairn}개` : '돌탑 터');
+    const h = drawCairn(this.cairnTex.getContext(), state.cairn);
+    this.cairnTex.refresh();
+    this.cairnLabel
+      .setText(state.cairn > 0 ? `${cairnName(state.cairn)} · 돌 ${state.cairn}개` : cairnName(0))
+      .setY(this.cairnBaseY - Math.max(18, h + 10));
   }
 
   private useCairn(): void {
+    const before = cairnName(state.cairn);
     if (actions.placeStone()) {
       this.refreshCairn();
       hud.refreshInventory();
-      this.tweens.add({ targets: this.cairn, scaleY: 0.94, duration: 90, yoyo: true });
-      hud.toast(`돌을 하나 올렸어요 · 지금까지 ${state.cairn}개`);
+      this.tweens.add({ targets: this.cairn, scaleY: 0.97, duration: 90, yoyo: true });
+      hud.toast(
+        cairnName(state.cairn) !== before && state.cairn > 1
+          ? `${cairnName(state.cairn)}이 되었어요 · 지금까지 돌 ${state.cairn}개`
+          : state.cairn > CAIRN_CAP
+            ? `돌을 하나 얹었어요 · 지금까지 ${state.cairn}개 (탑은 더 커지지 않아요)`
+            : `돌을 하나 올렸어요 · 지금까지 ${state.cairn}개`,
+      );
     } else if (count('stone') <= 0) {
       hud.toast(
         state.cairn > 0
@@ -444,10 +485,10 @@ export class MountainScene extends BaseScene {
     let name = '등산로';
     for (const p of PLACES) {
       if (p.hidden) continue;
-      const near =
-        p.id === 'pension'
-          ? tx >= YARD.x0 && tx <= YARD.x1 && ty >= YARD.y0 && ty <= YARD.y1
-          : Math.abs(p.tx - tx) <= 4 && Math.abs(p.ty - ty) <= 4;
+      const yard = p.id === 'pension' ? YARD : p.id === 'cafe' ? CAFE_YARD : null;
+      const near = yard
+        ? tx >= yard.x0 && tx <= yard.x1 && ty >= yard.y0 && ty <= yard.y1
+        : Math.abs(p.tx - tx) <= 4 && Math.abs(p.ty - ty) <= 4;
       if (near) {
         name = p.name;
         if (this.currentPlace !== p.id) {

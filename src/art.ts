@@ -462,8 +462,11 @@ function drawCrop(crop: CropId, stage: number): HTMLCanvasElement {
   return cv;
 }
 
-export const ROOM_W = 12;
+/** 실내 지도 크기(칸). 펜션은 왼쪽이 거실, 오른쪽 4칸이 주방. */
+export const ROOM_W = 16;
 export const ROOM_H = 9;
+export const CAFE_W = 14;
+export const CAFE_H = 10;
 
 function drawRoom(): HTMLCanvasElement {
   const [cv, c] = mk(ROOM_W * TILE, ROOM_H * TILE);
@@ -479,6 +482,14 @@ function drawRoom(): HTMLCanvasElement {
   ellipse(c, 6 * TILE, 5.5 * TILE, 78, 44, '#b5544a');
   ellipse(c, 6 * TILE, 5.5 * TILE, 66, 34, '#c96a52');
   ellipse(c, 6 * TILE, 5.5 * TILE, 30, 14, '#e2a47f');
+  // 주방 바닥(오른쪽 4칸): 타일 무늬
+  for (let y = 64, r = 0; y < H - 32; y += 16, r++)
+    for (let x = 352, k = 0; x < W - 32; x += 16, k++) {
+      c.fillStyle = (r + k) % 2 ? '#e9e2d0' : '#d8cfb8';
+      c.fillRect(x, y, 16, 16);
+    }
+  c.fillStyle = 'rgba(0,0,0,0.12)';
+  c.fillRect(350, 64, 2, H - 96);
   // 위쪽 벽
   c.fillStyle = '#efe2c4';
   c.fillRect(0, 0, W, 64);
@@ -521,6 +532,39 @@ function drawRoom(): HTMLCanvasElement {
   c.fillStyle = '#dfeccb';
   c.fillRect(64, 18, 28, 20);
   poly(c, [64, 38, 76, 24, 84, 32, 92, 38], '#86b96b');
+  // 주방: 선반, 조리대, 화덕, 개수대
+  c.fillStyle = '#8a6a48';
+  c.fillRect(362, 24, 108, 4);
+  for (const [x, col] of [[368, '#e2473b'], [382, '#f6d55c'], [396, '#7cc262'], [440, '#c9643f'], [454, '#f3e3bd']] as const) {
+    rrect(c, x, 12, 9, 12, 2, col);
+    c.fillStyle = '#5b3d22';
+    c.fillRect(x + 1, 10, 7, 3);
+  }
+  for (const x of [414, 426]) {
+    c.fillStyle = '#6f685c';
+    c.fillRect(x, 28, 2, 8);
+    circle(c, x + 1, 42, 6, '#4a4a4a');
+  }
+  rrect(c, 352, 66, 128, 30, 3, '#8a6a48'); // 조리대 몸통
+  c.fillStyle = 'rgba(0,0,0,0.15)';
+  for (const x of [384, 416, 448]) c.fillRect(x, 78, 1, 18);
+  rrect(c, 350, 56, 132, 16, 3, '#e3c99a'); // 상판
+  rrect(c, 357, 59, 22, 10, 2, '#f0dc98'); // 도마
+  circle(c, 364, 64, 2.5, '#f08a3c');
+  circle(c, 371, 64, 2.5, '#7cc262');
+  rrect(c, 386, 58, 28, 12, 2, '#3b3b3b'); // 화덕
+  ellipse(c, 400, 62, 10, 5, '#8f969e');
+  ellipse(c, 400, 61, 7, 3, '#c96a52');
+  c.fillStyle = '#8f969e';
+  c.fillRect(411, 61, 6, 2);
+  rrect(c, 420, 59, 24, 10, 3, '#b9c4cc'); // 개수대
+  rrect(c, 423, 61, 18, 6, 2, '#8fb6cc');
+  c.fillStyle = '#8f969e';
+  c.fillRect(431, 53, 2, 8);
+  ellipse(c, 464, 63, 10, 5, '#c39a62'); // 바구니
+  circle(c, 460, 61, 3, '#e2473b');
+  circle(c, 466, 60, 3, '#7cc262');
+  circle(c, 469, 63, 2.5, '#f08a3c');
   // 침대
   rrect(c, 34, 62, 64, 68, 5, '#7a5a3a');
   rrect(c, 38, 66, 56, 60, 4, '#f7f1e3');
@@ -544,6 +588,155 @@ function drawRoom(): HTMLCanvasElement {
   return cv;
 }
 
+/** 산에서 보이는 카페 건물. */
+function drawCafe(): HTMLCanvasElement {
+  const [cv, c] = mk(256, 176);
+  ellipse(c, 128, 168, 120, 7, 'rgba(0,0,0,0.15)');
+  c.fillStyle = '#f3ead7';
+  c.fillRect(20, 56, 216, 112);
+  c.fillStyle = '#8a6a48';
+  c.fillRect(20, 162, 216, 6);
+  // 평지붕과 차양
+  rrect(c, 10, 34, 236, 26, 4, '#3f6b52');
+  c.fillStyle = 'rgba(255,255,255,0.14)';
+  c.fillRect(10, 34, 236, 5);
+  for (let x = 14, k = 0; x < 242; x += 19, k++) {
+    poly(c, [x, 60, x + 19, 60, x + 19, 76, x + 9.5, 82, x, 76], k % 2 ? '#f3ead7' : '#4f8566');
+  }
+  // 간판
+  rrect(c, 92, 6, 72, 26, 5, '#5b3d22');
+  c.fillStyle = '#fff6dc';
+  c.font = 'bold 15px system-ui, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif';
+  c.textAlign = 'center';
+  c.textBaseline = 'middle';
+  c.fillText('카 페', 128, 20);
+  // 큰 창
+  for (const x of [32, 164]) {
+    rrect(c, x, 94, 60, 50, 3, '#5b3d22');
+    c.fillStyle = '#ffe7a3';
+    c.fillRect(x + 4, 98, 52, 42);
+    c.fillStyle = '#5b3d22';
+    c.fillRect(x + 29, 98, 2, 42);
+    circle(c, x + 16, 126, 5, '#c9643f');
+    circle(c, x + 43, 126, 5, '#7b98b8');
+  }
+  // 문
+  rrect(c, 110, 100, 36, 68, 3, '#5b3d22');
+  rrect(c, 114, 104, 28, 64, 2, '#7a9a82');
+  c.fillStyle = '#d5efe0';
+  c.fillRect(118, 108, 20, 26);
+  circle(c, 137, 142, 2, '#e8c96a');
+  // 화분
+  for (const x of [100, 156]) {
+    rrect(c, x - 6, 154, 12, 12, 2, '#c9643f');
+    circle(c, x, 148, 8, '#5ea457');
+    circle(c, x - 3, 145, 4, '#84c477');
+  }
+  return cv;
+}
+
+/** 카페 실내. */
+function drawCafeRoom(): HTMLCanvasElement {
+  const W = CAFE_W * TILE;
+  const H = CAFE_H * TILE;
+  const [cv, c] = mk(W, H);
+  // 바닥
+  c.fillStyle = '#dcc097';
+  c.fillRect(0, 0, W, H);
+  c.fillStyle = 'rgba(0,0,0,0.07)';
+  for (let x = 32; x < W - 32; x += 24) c.fillRect(x, 64, 1, H - 96);
+  for (let x = 32, k = 0; x < W - 32; x += 24, k++) for (let y = k % 2 ? 84 : 116; y < H - 32; y += 64) c.fillRect(x, y, 24, 1);
+  // 위쪽 벽과 큰 창
+  c.fillStyle = '#f3ead7';
+  c.fillRect(0, 0, W, 64);
+  c.fillStyle = '#6f5a45';
+  c.fillRect(0, 58, W, 6);
+  rrect(c, 172, 6, 236, 46, 3, '#5b3d22');
+  c.fillStyle = '#bfe0f2';
+  c.fillRect(176, 10, 228, 38);
+  poly(c, [176, 48, 216, 20, 248, 40, 290, 14, 340, 42, 372, 26, 404, 48], '#7db263');
+  poly(c, [276, 23, 290, 14, 304, 22, 296, 24, 289, 20, 283, 24], '#ffffff');
+  c.fillStyle = '#5b3d22';
+  for (const x of [232, 289, 346]) c.fillRect(x, 10, 3, 38);
+  // 창가 긴 탁자와 의자
+  rrect(c, 172, 60, 236, 12, 3, '#a9793f');
+  c.fillStyle = 'rgba(255,255,255,0.2)';
+  c.fillRect(176, 62, 228, 2);
+  for (const col of [6, 8, 10, 12]) {
+    ellipse(c, (col + 0.5) * TILE, 2.5 * TILE + 6, 11, 5, 'rgba(0,0,0,0.15)');
+    circle(c, (col + 0.5) * TILE, 2.5 * TILE + 2, 10, '#7a5a3a');
+    circle(c, (col + 0.5) * TILE, 2.5 * TILE, 10, '#c39a62');
+  }
+  // 옆·아래 벽
+  c.fillStyle = '#6f5a45';
+  c.fillRect(0, 0, 32, H);
+  c.fillRect(W - 32, 0, 32, H);
+  c.fillRect(0, H - 32, W, 32);
+  c.fillStyle = 'rgba(0,0,0,0.15)';
+  c.fillRect(28, 0, 4, H - 32);
+  c.fillRect(W - 32, 0, 4, H - 32);
+  c.fillRect(32, H - 32, W - 64, 4);
+  // 문
+  c.fillStyle = '#dcc097';
+  c.fillRect(7 * TILE, H - 32, 32, 32);
+  rrect(c, 7 * TILE + 3, H - 26, 26, 18, 3, '#3f6b52');
+  c.fillStyle = '#f3e3bd';
+  c.font = 'bold 9px system-ui, sans-serif';
+  c.textAlign = 'center';
+  c.textBaseline = 'middle';
+  c.fillText('나가기', 7 * TILE + 16, H - 16.5);
+  // 차림표
+  rrect(c, 44, 8, 76, 34, 3, '#2f4a3a');
+  c.fillStyle = '#f3ead7';
+  c.font = 'bold 10px system-ui, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif';
+  c.fillText('차 림 표', 82, 17);
+  c.fillStyle = 'rgba(243,234,215,0.7)';
+  for (const y of [25, 30, 35]) c.fillRect(54, y, 56, 1.5);
+  // 주인: 계산대 뒤에 서 있다
+  rrect(c, 124, 40, 16, 22, 5, '#f3ead7');
+  rrect(c, 126, 46, 12, 16, 2, '#3f6b52');
+  circle(c, 132, 34, 7, '#f4d6b4');
+  c.fillStyle = '#3b2f22';
+  c.fillRect(129, 33, 2, 2);
+  c.fillRect(134, 33, 2, 2);
+  poly(c, [124, 31, 132, 23, 140, 31, 138, 28, 126, 28], '#5b3d22');
+  // 계산대
+  rrect(c, 32, 68, 128, 28, 3, '#5b3d22');
+  rrect(c, 30, 56, 132, 18, 3, '#c39a62');
+  c.fillStyle = 'rgba(255,255,255,0.2)';
+  c.fillRect(34, 58, 124, 2);
+  rrect(c, 40, 44, 30, 22, 3, '#8f969e'); // 커피 기계
+  rrect(c, 44, 48, 22, 8, 2, '#4a4a4a');
+  circle(c, 49, 61, 2, '#e2473b');
+  circle(c, 61, 61, 2, '#f6d55c');
+  ellipse(c, 96, 62, 13, 4, '#ffffff'); // 케이크 받침
+  poly(c, [86, 60, 106, 60, 104, 50, 88, 50], '#f2a7c3');
+  c.fillStyle = '#ffffff';
+  c.fillRect(88, 49, 16, 3);
+  circle(c, 96, 47, 2.5, '#e2473b');
+  // 둥근 탁자 2개와 의자
+  for (const col of [5, 10]) {
+    const x = (col + 0.5) * TILE;
+    const y = 5.5 * TILE;
+    for (const dx of [-32, 32]) {
+      ellipse(c, x + dx, y + 6, 11, 5, 'rgba(0,0,0,0.15)');
+      circle(c, x + dx, y + 2, 10, '#7a5a3a');
+      circle(c, x + dx, y, 10, '#c39a62');
+    }
+    ellipse(c, x, y + 8, 17, 6, 'rgba(0,0,0,0.18)');
+    circle(c, x, y, 16, '#8a6640');
+    circle(c, x, y - 2, 15, '#f3ead7');
+    circle(c, x, y - 2, 4, '#7cc262');
+    circle(c, x + 1, y - 4, 2, '#f2a7c3');
+  }
+  // 화분
+  rrect(c, 12 * TILE + 6, 7 * TILE + 12, 20, 18, 3, '#c9643f');
+  circle(c, 12.5 * TILE, 7 * TILE + 6, 13, '#5ea457');
+  circle(c, 12.5 * TILE - 5, 7 * TILE, 7, '#84c477');
+  circle(c, 12.5 * TILE + 6, 7 * TILE + 2, 6, '#4f9a4a');
+  return cv;
+}
+
 export function buildTextures(scene: Phaser.Scene): void {
   const tx = scene.textures;
   if (tx.exists('tiles')) return;
@@ -555,6 +748,8 @@ export function buildTextures(scene: Phaser.Scene): void {
   for (const k of ['gate', 'spring', 'bench', 'deck', 'stone']) tx.addCanvas('f_' + k, drawFeature(k));
   for (const id of CROP_IDS) for (let s = 0; s < 4; s++) tx.addCanvas(`crop_${id}_${s}`, drawCrop(id, s));
   tx.addCanvas('room', drawRoom());
+  tx.addCanvas('cafe', drawCafe());
+  tx.addCanvas('caferoom', drawCafeRoom());
   const [fc, f] = mk(28, 26);
   poly(f, [3, 26, 14, 1, 25, 26], '#f08a3c');
   poly(f, [9, 26, 14, 11, 19, 26], '#f6d55c');
@@ -583,20 +778,6 @@ export function buildTextures(scene: Phaser.Scene): void {
   p.quadraticCurveTo(11, -1, 20, 9);
   p.stroke();
   tx.addCanvas('pick', pc);
-  // 돌탑: 쌓은 돌 수에 따라 5단계
-  for (let lv = 0; lv < 5; lv++) {
-    const [cc, k] = mk(64, 84);
-    ellipse(k, 32, 78, 26, 5, 'rgba(0,0,0,0.18)');
-    ellipse(k, 32, 75, 24, 6, '#8d8577');
-    const n = [0, 2, 4, 7, 10][lv];
-    for (let i = 0; i < n; i++) {
-      const w = 20 - i * 1.6;
-      const y = 69 - i * 6.6;
-      ellipse(k, 32 + (i % 2 ? 1.5 : -1.5), y, w, 4.6, i % 2 ? '#b6b1a6' : '#a39e92');
-      ellipse(k, 28 + (i % 2 ? 1.5 : -1.5), y - 1.2, w * 0.5, 1.6, 'rgba(255,255,255,0.28)');
-    }
-    tx.addCanvas('cairn_' + lv, cc);
-  }
   const [sh, s] = mk(28, 12);
   ellipse(s, 14, 6, 13, 5, 'rgba(0,0,0,0.22)');
   tx.addCanvas('shadow', sh);

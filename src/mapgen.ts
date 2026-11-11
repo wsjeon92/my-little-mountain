@@ -60,6 +60,8 @@ export const PLACES: Place[] = [
   { id: 'yardW', name: '', tx: 45, ty: 86, hidden: true },
   { id: 'yardE', name: '', tx: 72, ty: 85, hidden: true },
   { id: 'yardS', name: '', tx: 53, ty: 90, hidden: true },
+  { id: 'cafe', name: '산마루 카페', tx: 62, ty: 73 },
+  { id: 'cafeW', name: '', tx: 57, ty: 73, hidden: true },
 ];
 
 /** 등산로 그래프의 선. */
@@ -76,11 +78,18 @@ const EDGES: [string, string][] = [
   ['ridge', 'summit'],
   ['reeds', 'summit'],
   ['deck', 'summit'],
+  ['yardE', 'cafe'],
+  ['cafeW', 'ridge'],
 ];
 
 /** 펜션 건물이 차지하는 칸과 문 앞 칸. */
 export const PENSION = { x: 52, y: 78, w: 7, h: 5, door: { tx: 55, ty: 83 } };
 export const YARD = { x0: 45, y0: 83, x1: 72, y1: 90 };
+/** 펜션 위쪽의 카페 건물, 그 앞마당, 옆 연못. */
+export const CAFE = { x: 59, y: 68, w: 7, h: 4, door: { tx: 62, ty: 72 } };
+export const CAFE_YARD = { x0: 57, y0: 72, x1: 70, y1: 74 };
+const POND = { cx: 68.5, cy: 70, rx: 2.3, ry: 1.7 };
+const BUILDINGS = [PENSION, CAFE];
 const FARM = { x0: 62, y0: 83, x1: 70, y1: 89 };
 
 /** 텃밭 12칸(4열 × 3행). 칸 사이는 걸어다닐 수 있는 흙길. */
@@ -199,6 +208,15 @@ export function getMap(): MountainMap {
     });
   }
 
+  // 카페 옆 연못
+  for (let y = 66; y <= 73; y++)
+    for (let x = 64; x <= 72; x++) {
+      const dx = (x + 0.5 - POND.cx) / POND.rx;
+      const dy = (y + 0.5 - POND.cy) / POND.ry;
+      if (dx * dx + dy * dy <= 1 && x >= CAFE.x + CAFE.w) ground[y][x] = hash(x, y) < 0.5 ? T.WATER : T.WATER2;
+    }
+  for (let y = CAFE_YARD.y0; y <= CAFE_YARD.y1; y++) for (let x = CAFE_YARD.x0; x <= CAFE_YARD.x1; x++) ground[y][x] = T.YARD;
+
   // 3) 펜션 마당과 텃밭
   for (let y = YARD.y0; y <= YARD.y1; y++) for (let x = YARD.x0; x <= YARD.x1; x++) ground[y][x] = T.YARD;
   for (let y = FARM.y0; y <= FARM.y1; y++) for (let x = FARM.x0; x <= FARM.x1; x++) ground[y][x] = T.SOIL;
@@ -206,7 +224,7 @@ export function getMap(): MountainMap {
 
   // 4) 등산로: 그래프의 선을 구불구불한 길 타일로 깐다
   const inBuilding = (x: number, y: number) =>
-    x >= PENSION.x && x < PENSION.x + PENSION.w && y >= PENSION.y && y < PENSION.y + PENSION.h;
+    BUILDINGS.some((b) => x >= b.x && x < b.x + b.w && y >= b.y && y < b.y + b.h);
   const stamp = (x: number, y: number) => {
     if (!inMap(x, y) || inBuilding(x, y)) return;
     const g = ground[y][x];
@@ -229,7 +247,7 @@ export function getMap(): MountainMap {
   });
   // 쉼터마다 작은 공터
   for (const p of PLACES) {
-    if (p.hidden || p.id === 'pension') continue;
+    if (p.hidden || p.id === 'pension' || p.id === 'cafe') continue;
     for (let dy = -3; dy <= 3; dy++)
       for (let dx = -3; dx <= 3; dx++) {
         if (dx * dx + dy * dy > 10) continue;
@@ -256,7 +274,7 @@ export function getMap(): MountainMap {
     for (let x = 0; x < MAP_W; x++) {
       const g = ground[y][x];
       if (g >= T.TRAIL) continue;
-      if (x >= PENSION.x - 1 && x <= PENSION.x + PENSION.w && y >= PENSION.y - 1 && y < PENSION.y + PENSION.h) continue;
+      if (BUILDINGS.some((b) => x >= b.x - 1 && x <= b.x + b.w && y >= b.y - 1 && y < b.y + b.h)) continue;
       const b = g >= T.LEDGE ? g - T.LEDGE : Math.floor(g / 3);
       const d = noise(x / 6 + 40, y / 6 + 40);
       // 위치로만 정해지는 무작위 값: 지도 일부를 고쳐도 나머지 숲 모양이 바뀌지 않는다.

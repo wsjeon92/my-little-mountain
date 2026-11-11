@@ -1,5 +1,5 @@
 import { CROPS, type CropId } from './crops';
-import { FISH_ODDS, ITEM_IDS, type ItemId } from './items';
+import { FISH_IDS, FISH_ODDS, ITEM_IDS, RECIPES, type ItemId, type Recipe } from './items';
 
 /**
  * 게임 상태와, 상태를 바꾸는 유일한 통로(actions).
@@ -7,7 +7,7 @@ import { FISH_ODDS, ITEM_IDS, type ItemId } from './items';
  * 멀티 유저로 갈 때는 actions 의 구현만 서버 호출로 바꾸면 된다.
  */
 
-export type SceneId = 'mountain' | 'pension';
+export type SceneId = 'mountain' | 'pension' | 'cafe';
 
 export interface Plot {
   crop: CropId | null;
@@ -34,6 +34,10 @@ export interface GameState {
   fireUntil: number;
   /** 정상 돌탑에 올린 돌 수 (멀티에서는 모두가 함께 쌓는 월드 상태) */
   cairn: number;
+  /** 요리 도감: 한 번이라도 만들어 본 요리 */
+  cookbook: ItemId[];
+  /** 요리를 먹고 걸음이 빨라진 효과가 끝나는 시각 */
+  speedUntil: number;
 }
 
 const KEY = 'my-little-mountain:v1';
@@ -44,6 +48,9 @@ export const TREE_MS = 10 * 60_000;
 export const ROCK_MS = 15 * 60_000;
 /** 장작 하나가 벽난로에서 타는 시간 */
 export const FIRE_MS = 10 * 60_000;
+/** 요리 하나를 먹으면 걸음이 빨라지는 시간과 배율 */
+export const FULL_MS = 5 * 60_000;
+export const FULL_SPEED = 1.3;
 
 function fresh(): GameState {
   const id = 'p-' + Math.random().toString(36).slice(2, 10);
@@ -60,6 +67,8 @@ function fresh(): GameState {
     gathered: {},
     fireUntil: 0,
     cairn: 0,
+    cookbook: [],
+    speedUntil: 0,
   };
 }
 
@@ -83,6 +92,8 @@ function migrate(raw: Record<string, unknown>): GameState | null {
   s.fireUntil ??= 0;
   s.cairn ??= 0;
   s.visited ??= [];
+  s.cookbook ??= [];
+  s.speedUntil ??= 0;
   return s;
 }
 
@@ -134,6 +145,19 @@ function give(id: ItemId, n: number): void {
 
 export function ownedItems(): ItemId[] {
   return ITEM_IDS.filter((id) => count(id) > 0);
+}
+
+export function fishCount(): number {
+  return FISH_IDS.reduce((n, id) => n + count(id), 0);
+}
+
+export function canCook(r: Recipe): boolean {
+  if (count('wood') < 1) return false;
+  return Object.entries(r.needs).every(([k, n]) => (k === 'anyFish' ? fishCount() : count(k as ItemId)) >= n!);
+}
+
+export function isFull(now = Date.now()): boolean {
+  return state.speedUntil > now;
 }
 
 export type PlotView =
@@ -209,6 +233,37 @@ export const actions = {
     if (count('stone') <= 0) return false;
     give('stone', -1);
     state.cairn += 1;
+    save(true);
+    return true;
+  },
+  /** 재료와 장작 1개를 써서 요리를 만든다. 도감에 처음 오르면 isNew. */
+  cook(index: number): { dish: ItemId; isNew: boolean } | null {
+    const r = RECIPES[index];
+    if (!r || !canCook(r)) return null;
+    for (const [k, n] of Object.entries(r.needs)) {
+      if (k !== 'anyFish') {
+        give(k as ItemId, -n!);
+        continue;
+      }
+      let left = n!;
+      for (const id of FISH_IDS) {
+        const use = Math.min(left, count(id)); // 흔한 물고기부터 쓴다
+        give(id, -use);
+        left -= use;
+      }
+    }
+    give('wood', -1);
+    give(r.dish, 1);
+    const isNew = !state.cookbook.includes(r.dish);
+    if (isNew) state.cookbook.push(r.dish);
+    save(true);
+    return { dish: r.dish, isNew };
+  },
+  /** 요리를 먹는다. 한동안 걸음이 빨라진다. */
+  eat(id: ItemId): boolean {
+    if (count(id) <= 0) return false;
+    give(id, -1);
+    state.speedUntil = Math.max(Date.now(), state.speedUntil) + FULL_MS;
     save(true);
     return true;
   },

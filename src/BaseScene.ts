@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { TILE } from './mapgen';
 import { findPath } from './pathfind';
-import { actions } from './state';
+import { actions, FULL_SPEED, isFull } from './state';
 import { hidePanel } from './hud';
 
 export interface Interactable {
@@ -158,7 +158,7 @@ export abstract class BaseScene extends Phaser.Scene {
     }
 
     if (!this.path.length) return;
-    let move = (this.speed * Math.min(delta, 250)) / 1000;
+    let move = (this.speed * (isFull() ? FULL_SPEED : 1) * Math.min(delta, 250)) / 1000;
     while (move > 0 && this.path.length) {
       const [nx, ny] = this.path[0];
       const gx = (nx + 0.5) * TILE;

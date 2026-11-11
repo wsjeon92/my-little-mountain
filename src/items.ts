@@ -17,6 +17,12 @@ export const ITEMS = {
   minnow: { name: '피라미', emoji: '🐟', kind: 'fish' },
   trout: { name: '산천어', emoji: '🐠', kind: 'fish' },
   mandarin: { name: '쏘가리', emoji: '🐡', kind: 'fish' },
+  salad: { name: '상추 샐러드', emoji: '🥗', kind: 'dish' },
+  soup: { name: '당근 수프', emoji: '🍲', kind: 'dish' },
+  stew: { name: '토마토 스튜', emoji: '🥘', kind: 'dish' },
+  skewer: { name: '모둠 채소구이', emoji: '🍢', kind: 'dish' },
+  grilled: { name: '생선구이', emoji: '🍽️', kind: 'dish' },
+  ssam: { name: '생선 쌈밥', emoji: '🍱', kind: 'dish' },
 } as const satisfies Record<string, ItemDef>;
 
 export type ItemId = keyof typeof ITEMS;
@@ -35,6 +41,27 @@ export const FISH_ODDS: [ItemId, number][] = [
   ['trout', 0.3],
   ['mandarin', 0.1],
 ];
+
+export const FISH_IDS: ItemId[] = FISH_ODDS.map(([id]) => id);
+
+/** 요리법. anyFish 는 물고기 종류를 가리지 않는다는 뜻. 요리마다 장작 1개가 더 든다. */
+export interface Recipe {
+  dish: ItemId;
+  needs: Partial<Record<ItemId | 'anyFish', number>>;
+}
+export const RECIPES: Recipe[] = [
+  { dish: 'salad', needs: { lettuce: 2 } },
+  { dish: 'soup', needs: { carrot: 2 } },
+  { dish: 'stew', needs: { tomato: 2, carrot: 1 } },
+  { dish: 'skewer', needs: { lettuce: 1, carrot: 1, tomato: 1 } },
+  { dish: 'grilled', needs: { anyFish: 1 } },
+  { dish: 'ssam', needs: { anyFish: 1, lettuce: 2 } },
+];
+
+export function needsText(r: Recipe): string {
+  const parts = Object.entries(r.needs).map(([k, n]) => `${k === 'anyFish' ? '물고기' : ITEMS[k as ItemId].name} ${n}`);
+  return [...parts, '장작 1'].join(' · ');
+}
 
 /** 받침 유무에 따라 '을/를'을 붙인다. */
 export function eul(word: string): string {
