@@ -26,10 +26,20 @@ export interface GameState {
   farm: { ownerId: string; plots: Plot[] };
   inventory: Record<CropId, number>;
   visited: string[];
+  /** 가진 장작 수 */
+  wood: number;
+  /** 벤 나무: "tx,ty" → 벤 시각. 다시 자라면 지운다. (멀티에서는 모두가 함께 보는 월드 상태) */
+  trees: Record<string, number>;
+  /** 벽난로 불이 꺼지는 시각 */
+  fireUntil: number;
 }
 
 const KEY = 'my-little-mountain:v1';
 export const PLOT_COUNT = 12;
+/** 벤 나무가 다시 자라는 데 걸리는 실제 시간 */
+export const REGROW_MS = 10 * 60_000;
+/** 장작 하나가 벽난로에서 타는 시간 */
+export const FIRE_MS = 10 * 60_000;
 
 function fresh(): GameState {
   const id = 'p-' + Math.random().toString(36).slice(2, 10);
@@ -43,6 +53,9 @@ function fresh(): GameState {
     },
     inventory: { lettuce: 0, carrot: 0, tomato: 0 },
     visited: [],
+    wood: 0,
+    trees: {},
+    fireUntil: 0,
   };
 }
 
@@ -53,6 +66,9 @@ function load(): GameState {
       const s = JSON.parse(raw) as GameState;
       if (s && s.version === 1 && s.farm?.plots?.length === PLOT_COUNT) {
         for (const c of CROP_IDS) s.inventory[c] ??= 0;
+        s.wood ??= 0;
+        s.trees ??= {};
+        s.fireUntil ??= 0;
         return s;
       }
     }
@@ -124,6 +140,25 @@ export const actions = {
     if (p.crop) return false;
     p.crop = crop;
     p.plantedAt = Date.now();
+    save(true);
+    return true;
+  },
+  chop(tx: number, ty: number): boolean {
+    const k = `${tx},${ty}`;
+    if (state.trees[k]) return false;
+    state.trees[k] = Date.now();
+    state.wood += 1;
+    save(true);
+    return true;
+  },
+  regrow(key: string): void {
+    delete state.trees[key];
+    save();
+  },
+  addFirewood(): boolean {
+    if (state.wood <= 0) return false;
+    state.wood -= 1;
+    state.fireUntil = Math.max(Date.now(), state.fireUntil) + FIRE_MS;
     save(true);
     return true;
   },

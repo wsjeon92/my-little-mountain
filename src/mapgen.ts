@@ -26,8 +26,13 @@ export const T = {
   ROCK: 29,
   FLOWER: 30,
   REED: 31,
+  STUMP: 32,
 } as const;
-export const TILE_COUNT = 32;
+export const TILE_COUNT = 33;
+
+export function isTree(t: number): boolean {
+  return t >= T.TREE_A && t <= T.PINE_B;
+}
 
 export type Feature = 'gate' | 'spring' | 'bench' | 'deck' | 'stone';
 

@@ -201,6 +201,14 @@ function drawTile(c: Ctx, i: number): void {
         circle(c, x + 0.5, y, 0.9, '#e09b3d');
       }
       return;
+    case T.STUMP:
+      ellipse(c, 16, 25, 9, 3.5, 'rgba(0,0,0,0.18)');
+      c.fillStyle = '#7a5a3a';
+      c.fillRect(10, 17, 12, 8);
+      ellipse(c, 16, 25, 6, 2.2, '#7a5a3a');
+      ellipse(c, 16, 17, 6, 3, '#d9b27c');
+      ellipse(c, 16, 17, 3.2, 1.5, '#c39a62');
+      return;
     case T.REED: {
       const r = rnd(777);
       c.lineWidth = 1.5;
@@ -498,8 +506,8 @@ function drawRoom(): HTMLCanvasElement {
   // 벽난로
   rrect(c, 136, 14, 64, 50, 4, '#8d8577');
   rrect(c, 148, 30, 40, 34, 3, '#3b2f22');
-  poly(c, [158, 62, 168, 40, 178, 62], '#f08a3c');
-  poly(c, [163, 62, 168, 50, 173, 62], '#f6d55c');
+  rrect(c, 155, 57, 26, 5, 2, '#6b4c30');
+  rrect(c, 160, 53, 16, 5, 2, '#7a5a3a');
   c.fillStyle = '#6f685c';
   c.fillRect(132, 10, 72, 7);
   // 액자
@@ -541,6 +549,23 @@ export function buildTextures(scene: Phaser.Scene): void {
   for (const k of ['gate', 'spring', 'bench', 'deck', 'stone']) tx.addCanvas('f_' + k, drawFeature(k));
   for (const id of CROP_IDS) for (let s = 0; s < 4; s++) tx.addCanvas(`crop_${id}_${s}`, drawCrop(id, s));
   tx.addCanvas('room', drawRoom());
+  const [fc, f] = mk(28, 26);
+  poly(f, [3, 26, 14, 1, 25, 26], '#f08a3c');
+  poly(f, [9, 26, 14, 11, 19, 26], '#f6d55c');
+  tx.addCanvas('fire', fc);
+  const [gc, g] = mk(240, 240);
+  const grad = g.createRadialGradient(120, 120, 0, 120, 120, 120);
+  grad.addColorStop(0, 'rgba(255,170,80,0.55)');
+  grad.addColorStop(1, 'rgba(255,170,80,0)');
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 240, 240);
+  tx.addCanvas('glow', gc);
+  const [ac, a] = mk(18, 24);
+  a.fillStyle = '#8a6a48';
+  a.fillRect(8, 4, 3, 20);
+  poly(a, [3, 2, 14, 2, 16, 10, 5, 10], '#b9bfc6');
+  poly(a, [3, 2, 14, 2, 14.5, 4, 3.5, 4], '#e3e7ea');
+  tx.addCanvas('axe', ac);
   const [sh, s] = mk(28, 12);
   ellipse(s, 14, 6, 13, 5, 'rgba(0,0,0,0.22)');
   tx.addCanvas('shadow', sh);

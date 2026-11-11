@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { BaseScene } from './BaseScene';
-import { altitude, FARM_PLOTS, getMap, MAP_H, MAP_W, PENSION, PLACES, TILE, YARD } from './mapgen';
-import { actions, state, viewPlot } from './state';
+import { altitude, FARM_PLOTS, getMap, isTree, MAP_H, MAP_W, PENSION, PLACES, T, TILE, YARD } from './mapgen';
+import { actions, REGROW_MS, state, viewPlot } from './state';
 import { CROPS } from './crops';
 import * as hud from './hud';
 
@@ -16,6 +16,9 @@ function eul(word: string): string {
 export class MountainScene extends BaseScene {
   private crops: Phaser.GameObjects.Image[] = [];
   private currentPlace = '';
+  private decorLayer!: Phaser.Tilemaps.TilemapLayer;
+  private axe!: Phaser.GameObjects.Image;
+  private chopping?: { timer: Phaser.Time.TimerEvent; tween: Phaser.Tweens.Tween };
 
   constructor() {
     super('mountain');
@@ -34,8 +37,11 @@ export class MountainScene extends BaseScene {
     ] as const) {
       const tm = this.make.tilemap({ data: data as number[][], tileWidth: TILE, tileHeight: TILE });
       const ts = tm.addTilesetImage('tiles', 'tiles', TILE, TILE, 1, 2)!;
-      tm.createLayer(0, ts, 0, 0)!.setDepth(depth);
+      const layer = tm.createLayer(0, ts, 0, 0)!.setDepth(depth);
+      if (data === map.decor) this.decorLayer = layer;
     }
+    this.chopping = undefined;
+    this.refreshTrees(true);
 
     // 쉼터 표지판과 구조물
     for (const p of PLACES) {
@@ -85,7 +91,14 @@ export class MountainScene extends BaseScene {
     const farmLabelX = (FARM_PLOTS[0].tx + FARM_PLOTS[3].tx + 1) * 0.5 * TILE;
     this.label(farmLabelX, FARM_PLOTS[0].ty * TILE - 10, '텃밭');
     this.refreshCrops();
-    this.time.addEvent({ delay: 1000, loop: true, callback: () => this.refreshCrops() });
+    this.time.addEvent({
+      delay: 1000,
+      loop: true,
+      callback: () => {
+        this.refreshCrops();
+        this.refreshTrees(false);
+      },
+    });
 
     // 플레이어
     const gate = PLACES[0];
@@ -95,6 +108,8 @@ export class MountainScene extends BaseScene {
       ty = gate.ty;
     }
     this.createPlayer(tx, ty);
+    this.axe = this.add.image(0, -12, 'axe').setOrigin(0.5, 0.95).setVisible(false);
+    this.player.add(this.axe);
 
     const cam = this.cameras.main;
     cam.setBounds(0, 0, MAP_W * TILE, MAP_H * TILE);
@@ -113,7 +128,7 @@ export class MountainScene extends BaseScene {
     this.currentPlace = '';
     this.onStep(tx, ty);
     if (!state.visited.length || state.visited.length === 1) {
-      hud.toast('마이리틀마운틴 · 가고 싶은 곳을 누르면 등산로를 따라 걸어갑니다', 5000);
+      hud.toast('가고 싶은 곳을 누르면 걸어갑니다 · 길가 나무를 누르면 장작을 얻어요', 6000);
     }
   }
 
@@ -130,6 +145,86 @@ export class MountainScene extends BaseScene {
       })
       .setOrigin(0.5, 1)
       .setDepth(1e6);
+  }
+
+  /** 벤 나무는 그루터기로, 시간이 지난 그루터기는 다시 나무로 그린다. */
+  private refreshTrees(initial: boolean): void {
+    const map = getMap();
+    const now = Date.now();
+    for (const key of Object.keys(state.trees)) {
+      const [x, y] = key.split(',').map(Number);
+      if (now - state.trees[key] >= REGROW_MS) {
+        actions.regrow(key);
+        this.decorLayer.putTileAt(map.decor[y][x], x, y);
+      } else if (initial) {
+        this.decorLayer.putTileAt(T.STUMP, x, y);
+      }
+    }
+  }
+
+  /** 길가 나무를 누르면 옆 길로 걸어가 벤다. */
+  protected tapWorld(wx: number, wy: number): boolean {
+    const tx = Math.floor(wx / TILE);
+    const ty = Math.floor(wy / TILE);
+    if (tx < 0 || ty < 0 || tx >= MAP_W || ty >= MAP_H) return false;
+    if (!isTree(getMap().decor[ty][tx])) return false;
+    let best: [number, number] | null = null;
+    let bd = Infinity;
+    for (let dy = -1; dy <= 1; dy++)
+      for (let dx = -1; dx <= 1; dx++) {
+        const nx = tx + dx;
+        const ny = ty + dy;
+        if ((!dx && !dy) || nx < 0 || ny < 0 || nx >= MAP_W || ny >= MAP_H) continue;
+        if (!this.walk[ny * MAP_W + nx]) continue;
+        const d = Math.hypot(nx - this.ptx, ny - this.pty) + (dx && dy ? 0.5 : 0);
+        if (d < bd) {
+          bd = d;
+          best = [nx, ny];
+        }
+      }
+    if (!best) return false; // 길에서 먼 나무는 그냥 걷기로 처리
+    this.goTo(best[0], best[1], () => this.startChop(tx, ty));
+    return true;
+  }
+
+  private startChop(tx: number, ty: number): void {
+    const cutAt = state.trees[`${tx},${ty}`];
+    if (cutAt) {
+      hud.toast(`다시 자라는 중 · ${hud.fmtRemain(REGROW_MS - (Date.now() - cutAt))}`);
+      return;
+    }
+    const dir = tx < this.ptx ? -1 : 1;
+    this.sprite.setFlipX(dir < 0);
+    this.axe.setVisible(true).setPosition(dir * 11, -12).setFlipX(dir < 0).setAngle(-50 * dir);
+    const tween = this.tweens.add({
+      targets: this.axe,
+      angle: 60 * dir,
+      duration: 260,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Quad.easeIn',
+    });
+    const timer = this.time.delayedCall(1700, () => {
+      this.stopChop();
+      if (actions.chop(tx, ty)) {
+        this.decorLayer.putTileAt(T.STUMP, tx, ty);
+        hud.refreshInventory();
+        hud.toast('🪵 장작을 얻었어요');
+      }
+    });
+    this.chopping = { timer, tween };
+  }
+
+  private stopChop(): void {
+    if (!this.chopping) return;
+    this.chopping.timer.remove();
+    this.chopping.tween.stop();
+    this.chopping = undefined;
+    this.axe.setVisible(false);
+  }
+
+  protected onLeave(): void {
+    this.stopChop();
   }
 
   private refreshCrops(): void {

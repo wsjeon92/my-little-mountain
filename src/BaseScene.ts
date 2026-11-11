@@ -81,6 +81,7 @@ export abstract class BaseScene extends Phaser.Scene {
         return;
       }
     }
+    if (this.tapWorld(wx, wy)) return;
     const t = this.nearestWalkable(wx / TILE - 0.5, wy / TILE - 0.5);
     if (t) this.goTo(t[0], t[1]);
   }
@@ -127,6 +128,10 @@ export abstract class BaseScene extends Phaser.Scene {
     cb?.();
   }
 
+  /** 고정 대상이 아닌 것(나무 등)을 눌렀는지 장면별로 처리. 처리했으면 true. */
+  protected tapWorld(_wx: number, _wy: number): boolean {
+    return false;
+  }
   /** 한 칸 옮길 때마다 불린다. */
   protected onStep(_tx: number, _ty: number): void {}
   /** 멈춰 섰을 때 불린다. */

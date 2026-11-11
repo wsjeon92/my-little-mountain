@@ -13,7 +13,8 @@ export function setPlace(name: string, alt?: number): void {
 }
 
 export function refreshInventory(): void {
-  $('inv').textContent = CROP_IDS.map((c) => `${CROPS[c].emoji} ${state.inventory[c]}`).join('   ');
+  $('inv').textContent =
+    `🪵 ${state.wood}   ` + CROP_IDS.map((c) => `${CROPS[c].emoji} ${state.inventory[c]}`).join('   ');
 }
 
 let toastTimer: number | undefined;
