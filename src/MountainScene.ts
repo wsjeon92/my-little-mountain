@@ -5,6 +5,7 @@ import {
   CAFE,
   CAFE_YARD,
   FARM_PLOTS,
+  PEN,
   getMap,
   isTree,
   MAP_H,
@@ -15,7 +16,8 @@ import {
   TILE,
   YARD,
 } from './mapgen';
-import { actions, count, ROCK_MS, state, TREE_MS, viewPlot } from './state';
+import { actions, count, isPenFed, ROCK_MS, state, TREE_MS, viewPlot } from './state';
+import { Pen } from './animals';
 import { CROPS } from './crops';
 import { eul, ITEMS, type ItemId } from './items';
 import * as hud from './hud';
@@ -62,6 +64,8 @@ export class MountainScene extends BaseScene {
   private cairnBaseY = 0;
   private cairnLabel!: Phaser.GameObjects.Text;
   private fishing?: Fishing;
+  private pen!: Pen;
+  private penLabel!: Phaser.GameObjects.Text;
 
   constructor() {
     super('mountain');
@@ -136,6 +140,11 @@ export class MountainScene extends BaseScene {
       },
     });
 
+    // 닭·토끼 우리
+    this.pen = new Pen(this);
+    this.penLabel = this.label(((PEN.x0 + PEN.x1 + 1) / 2) * TILE, (PEN.y1 + 1) * TILE + 28, '');
+    this.refreshPen();
+
     // 카페
     const kx = (CAFE.x + CAFE.w / 2) * TILE;
     const ky = (CAFE.y + CAFE.h) * TILE;
@@ -172,15 +181,19 @@ export class MountainScene extends BaseScene {
       callback: () => {
         this.refreshCrops();
         this.refreshGathered(false);
+        this.refreshPen();
       },
     });
 
     // 플레이어
     const gate = PLACES[0];
     let { tx, ty } = state.player;
-    if (state.player.scene !== 'mountain' || tx < 0 || !map.walk[ty * MAP_W + tx]) {
+    if (state.player.scene !== 'mountain' || tx < 0) {
       tx = gate.tx;
       ty = gate.ty;
+    } else if (!map.walk[ty * MAP_W + tx]) {
+      // 지도가 바뀌어 서 있던 칸이 막혔으면(예: 새 우리 자리) 가장 가까운 길로 옮긴다.
+      [tx, ty] = this.nearestWalkable(tx, ty) ?? [gate.tx, gate.ty];
     }
     this.createPlayer(tx, ty);
     this.tool = this.add.image(0, -12, 'axe').setOrigin(0.5, 0.95).setVisible(false);
@@ -266,6 +279,12 @@ export class MountainScene extends BaseScene {
     const ty = Math.floor(wy / TILE);
     if (tx < 0 || ty < 0 || tx >= MAP_W || ty >= MAP_H) return false;
     const map = getMap();
+    if (tx >= PEN.x0 && tx <= PEN.x1 && ty >= PEN.y0 && ty <= PEN.y1) {
+      const at = this.standNear(tx, ty, 5);
+      if (!at) return false;
+      this.goTo(at[0], at[1], () => this.feedPen(wx, wy));
+      return true;
+    }
     const rule = ruleOf(map.decor[ty][tx]);
     if (rule) {
       const at = this.standNear(tx, ty, 1);
@@ -412,6 +431,32 @@ export class MountainScene extends BaseScene {
   protected onLeave(): void {
     this.stopWork();
     this.stopFishing();
+  }
+
+  // ── 닭·토끼 우리 ────────────────────────────────────────
+
+  private refreshPen(): void {
+    this.penLabel.setText(
+      isPenFed() ? `닭·토끼 · 배부름 ${hud.fmtRemain(state.penFedUntil - Date.now())}` : '닭·토끼 우리',
+    );
+  }
+
+  private feedPen(wx: number, wy: number): void {
+    if (!actions.feedAnimals()) {
+      hud.toast('당근이 없어요. 텃밭에서 길러 오세요');
+      return;
+    }
+    const [fx, fy] = this.pen.clamp(wx, wy);
+    this.sprite.setFlipX(fx < this.player.x);
+    this.pen.feed(this.player.x, this.player.y, fx, fy);
+    hud.refreshInventory();
+    this.refreshPen();
+    hud.toast('🥕 당근을 던져 줬어요. 닭과 토끼가 모여듭니다');
+  }
+
+  update(time: number, delta: number): void {
+    super.update(time, delta);
+    this.pen.update(delta);
   }
 
   // ── 돌탑 ───────────────────────────────────────────────

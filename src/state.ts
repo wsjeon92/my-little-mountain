@@ -38,6 +38,8 @@ export interface GameState {
   cookbook: ItemId[];
   /** 요리를 먹고 걸음이 빨라진 효과가 끝나는 시각 */
   speedUntil: number;
+  /** 닭·토끼에게 준 먹이 효과가 끝나는 시각 (멀티에서는 모두가 함께 보는 월드 상태) */
+  penFedUntil: number;
 }
 
 const KEY = 'my-little-mountain:v1';
@@ -51,6 +53,8 @@ export const FIRE_MS = 10 * 60_000;
 /** 요리 하나를 먹으면 걸음이 빨라지는 시간과 배율 */
 export const FULL_MS = 5 * 60_000;
 export const FULL_SPEED = 1.3;
+/** 당근 하나를 주면 닭·토끼가 활발해지는 시간 */
+export const PEN_FED_MS = 5 * 60_000;
 
 function fresh(): GameState {
   const id = 'p-' + Math.random().toString(36).slice(2, 10);
@@ -69,6 +73,7 @@ function fresh(): GameState {
     cairn: 0,
     cookbook: [],
     speedUntil: 0,
+    penFedUntil: 0,
   };
 }
 
@@ -94,6 +99,7 @@ function migrate(raw: Record<string, unknown>): GameState | null {
   s.visited ??= [];
   s.cookbook ??= [];
   s.speedUntil ??= 0;
+  s.penFedUntil ??= 0;
   return s;
 }
 
@@ -154,6 +160,10 @@ export function fishCount(): number {
 export function canCook(r: Recipe): boolean {
   if (count('wood') < 1) return false;
   return Object.entries(r.needs).every(([k, n]) => (k === 'anyFish' ? fishCount() : count(k as ItemId)) >= n!);
+}
+
+export function isPenFed(now = Date.now()): boolean {
+  return state.penFedUntil > now;
 }
 
 export function isFull(now = Date.now()): boolean {
@@ -258,6 +268,14 @@ export const actions = {
     if (isNew) state.cookbook.push(r.dish);
     save(true);
     return { dish: r.dish, isNew };
+  },
+  /** 닭·토끼에게 당근 하나를 준다. */
+  feedAnimals(): boolean {
+    if (count('carrot') <= 0) return false;
+    give('carrot', -1);
+    state.penFedUntil = Math.max(Date.now(), state.penFedUntil) + PEN_FED_MS;
+    save(true);
+    return true;
   },
   /** 요리를 먹는다. 한동안 걸음이 빨라진다. */
   eat(id: ItemId): boolean {

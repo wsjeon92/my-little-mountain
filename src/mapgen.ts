@@ -28,8 +28,9 @@ export const T = {
   REED: 31,
   STUMP: 32,
   RUBBLE: 33,
+  PEN: 34,
 } as const;
-export const TILE_COUNT = 34;
+export const TILE_COUNT = 35;
 
 export function isTree(t: number): boolean {
   return t >= T.TREE_A && t <= T.PINE_B;
@@ -85,6 +86,8 @@ const EDGES: [string, string][] = [
 /** 펜션 건물이 차지하는 칸과 문 앞 칸. */
 export const PENSION = { x: 52, y: 78, w: 7, h: 5, door: { tx: 55, ty: 83 } };
 export const YARD = { x0: 45, y0: 83, x1: 72, y1: 90 };
+/** 펜션 앞마당의 닭·토끼 우리(칸 범위). 사람은 들어갈 수 없다. */
+export const PEN = { x0: 47, y0: 85, x1: 52, y1: 88 };
 /** 펜션 위쪽의 카페 건물, 그 앞마당, 옆 연못. */
 export const CAFE = { x: 59, y: 68, w: 7, h: 4, door: { tx: 62, ty: 72 } };
 export const CAFE_YARD = { x0: 57, y0: 72, x1: 70, y1: 74 };
@@ -221,6 +224,7 @@ export function getMap(): MountainMap {
   for (let y = YARD.y0; y <= YARD.y1; y++) for (let x = YARD.x0; x <= YARD.x1; x++) ground[y][x] = T.YARD;
   for (let y = FARM.y0; y <= FARM.y1; y++) for (let x = FARM.x0; x <= FARM.x1; x++) ground[y][x] = T.SOIL;
   for (const p of FARM_PLOTS) ground[p.ty][p.tx] = T.PLOT;
+  for (let y = PEN.y0; y <= PEN.y1; y++) for (let x = PEN.x0; x <= PEN.x1; x++) ground[y][x] = T.PEN;
 
   // 4) 등산로: 그래프의 선을 구불구불한 길 타일로 깐다
   const inBuilding = (x: number, y: number) =>
@@ -228,7 +232,7 @@ export function getMap(): MountainMap {
   const stamp = (x: number, y: number) => {
     if (!inMap(x, y) || inBuilding(x, y)) return;
     const g = ground[y][x];
-    if (g === T.YARD || g === T.SOIL || g === T.PLOT || g === T.BRIDGE) return;
+    if (g === T.YARD || g === T.SOIL || g === T.PLOT || g === T.BRIDGE || g === T.PEN) return;
     if (g === T.WATER || g === T.WATER2) ground[y][x] = T.BRIDGE;
     else ground[y][x] = hash(x, y) < 0.7 ? T.TRAIL : T.TRAIL2;
   };

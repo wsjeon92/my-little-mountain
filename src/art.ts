@@ -1,5 +1,5 @@
 import type Phaser from 'phaser';
-import { T, TILE, TILE_COUNT } from './mapgen';
+import { PEN, T, TILE, TILE_COUNT } from './mapgen';
 import { CROP_IDS, type CropId } from './crops';
 
 /**
@@ -215,6 +215,16 @@ function drawTile(c: Ctx, i: number): void {
       ellipse(c, 19, 24, 4, 2.6, '#aaa59a');
       ellipse(c, 15, 20, 2.5, 1.8, '#b6b1a6');
       return;
+    case T.PEN: {
+      c.fillStyle = '#d6c08d';
+      c.fillRect(0, 0, 32, 32);
+      const r = rnd(900);
+      for (let k = 0; k < 9; k++) {
+        c.fillStyle = r() < 0.5 ? '#e9dcae' : '#c4ad78';
+        c.fillRect(Math.floor(r() * 28), Math.floor(r() * 30), 4, 1);
+      }
+      return;
+    }
     case T.REED: {
       const r = rnd(777);
       c.lineWidth = 1.5;
@@ -239,7 +249,7 @@ function buildTileset(): HTMLCanvasElement {
   for (let i = 0; i < TILE_COUNT; i++) {
     const [tc, t] = mk(TILE, TILE);
     drawTile(t, i);
-    if (i < T.TREE_A) a.drawImage(tc, i * cell, 0, cell, cell);
+    if (i < T.TREE_A || i === T.PEN) a.drawImage(tc, i * cell, 0, cell, cell);
     a.drawImage(tc, i * cell + 1, 1);
   }
   return atlas;
@@ -778,6 +788,78 @@ export function buildTextures(scene: Phaser.Scene): void {
   p.quadraticCurveTo(11, -1, 20, 9);
   p.stroke();
   tx.addCanvas('pick', pc);
+  // 우리 울타리: 뒤쪽(위·양옆)과 앞쪽(아래)을 따로 그려 동물이 그 사이에 보이게 한다.
+  const pw = (PEN.x1 - PEN.x0 + 1) * TILE;
+  const ph = (PEN.y1 - PEN.y0 + 1) * TILE;
+  const rail = (k: Ctx, y: number) => {
+    k.fillStyle = '#b98a54';
+    k.fillRect(2, y + 5, pw + 8, 3);
+    k.fillRect(2, y + 11, pw + 8, 3);
+    for (let x = 4; x <= pw + 6; x += TILE) {
+      rrect(k, x - 1, y, 6, 19, 2, '#8a6640');
+      k.fillStyle = 'rgba(255,255,255,0.22)';
+      k.fillRect(x, y + 1, 1.5, 16);
+    }
+  };
+  const [bk, bkc] = mk(pw + 12, ph + 22);
+  for (const x of [5, pw + 5]) {
+    bkc.fillStyle = '#b98a54';
+    bkc.fillRect(x, 16, 3, ph - 12);
+    for (let y = 18 + TILE; y < ph; y += TILE) rrect(bkc, x - 1.5, y - 6, 6, 12, 2, '#8a6640');
+  }
+  rail(bkc, 0);
+  tx.addCanvas('pen_back', bk);
+  const [fr, frc] = mk(pw + 12, 24);
+  rail(frc, 2);
+  tx.addCanvas('pen_front', fr);
+  // 닭(흰색·갈색)
+  for (const [key, bodyCol, wingCol] of [['chicken_w', '#fbf7ee', '#e6dfd0'], ['chicken_b', '#c98f58', '#a8733f']] as const) {
+    const [cc, k] = mk(24, 24);
+    k.fillStyle = '#e8a23c';
+    k.fillRect(9, 19, 1.5, 4);
+    k.fillRect(13, 19, 1.5, 4);
+    poly(k, [3, 12, 8, 9, 8, 16], wingCol); // 꼬리깃
+    ellipse(k, 11, 15, 7, 5.5, bodyCol);
+    ellipse(k, 10, 15.5, 4, 3, wingCol);
+    circle(k, 17, 9, 4.2, bodyCol);
+    poly(k, [15, 5, 16.5, 2.5, 18, 5, 19.5, 3, 20, 6], '#e2473b'); // 볏
+    poly(k, [20.5, 9, 23.5, 10, 20.5, 11.5], '#f0b23c'); // 부리
+    circle(k, 18.5, 12.5, 1.3, '#e2473b');
+    k.fillStyle = '#2a2018';
+    k.fillRect(17.5, 8, 1.6, 1.6);
+    tx.addCanvas(key, cc);
+  }
+  // 토끼(흰색·갈색·회색)
+  for (const [key, col, shade] of [['rabbit_w', '#fbf7f2', '#e4dbd0'], ['rabbit_b', '#b98a5e', '#9a6f47'], ['rabbit_g', '#b4b0aa', '#96928c']] as const) {
+    const [cc, k] = mk(26, 26);
+    ellipse(k, 11, 19, 8, 5.5, col);
+    circle(k, 4, 18, 2.6, '#ffffff'); // 꼬리
+    ellipse(k, 9, 20.5, 4, 2.6, shade);
+    k.save();
+    k.translate(17, 8);
+    k.rotate(-0.25);
+    ellipse(k, 0, -3, 1.8, 6, col);
+    ellipse(k, 0, -3, 0.8, 4, '#f2b8c0');
+    k.restore();
+    k.save();
+    k.translate(20, 8);
+    k.rotate(0.2);
+    ellipse(k, 0, -3, 1.8, 6, col);
+    ellipse(k, 0, -3, 0.8, 4, '#f2b8c0');
+    k.restore();
+    circle(k, 18.5, 13.5, 4.8, col);
+    circle(k, 23, 14.5, 1, '#e58f9c');
+    k.fillStyle = '#2a2018';
+    k.fillRect(19.5, 12, 1.7, 1.7);
+    k.fillStyle = shade;
+    k.fillRect(14, 23, 4, 2);
+    k.fillRect(7, 23, 5, 2);
+    tx.addCanvas(key, cc);
+  }
+  const [cb, cbc] = mk(14, 12);
+  poly(cbc, [1, 7, 10, 4, 10, 10], '#f08a3c');
+  poly(cbc, [9, 5, 13, 1, 12, 6, 13, 10, 9, 9], '#5fae54');
+  tx.addCanvas('carrot_bit', cb);
   const [sh, s] = mk(28, 12);
   ellipse(s, 14, 6, 13, 5, 'rgba(0,0,0,0.22)');
   tx.addCanvas('shadow', sh);
